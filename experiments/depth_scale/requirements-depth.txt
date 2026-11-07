@@ -1,0 +1,12 @@
+# ③ depth.py で Depth Pro を使うときだけ入れる。
+# 重みのライセンス（Hugging Face の apple-amlr）の確認（docs/depth-scale/tasks.md の DS1）が済むまで入れない。
+#
+# PyTorch は hand_mesh/ と同じ版（CUDA 13.2）：
+#   .venv\Scripts\python -m pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu132
+#
+# Depth Pro は PyPI にないので、リポジトリのコミットを決めて入れる（コミットは入れるときに決めて、ここに書く。要確認）：
+#   .venv\Scripts\python -m pip install "git+https://github.com/apple/ml-depth-pro@<コミット>"
+#
+# 重み（depth_pro.pt）は、リポジトリの外に置く。例：
+#   .venv\Scripts\hf download apple/DepthPro --local-dir <リポジトリの外のフォルダ>
+huggingface-hub

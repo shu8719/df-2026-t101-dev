@@ -5,7 +5,9 @@
 > 2. 動画・フレーム・深度は `experiments/depth_scale/data/` にだけ置き、コミットしない。結果として残すのは数値（mm・%・秒）だけ。人は `p1`・`p2` のような番号で表し、名前は書かない。
 > 3. フレームの選び方と長さの集計は、本番の仕様（[measurement.md §3](../measurement.md#3-フレームの選び方)・[§7.1](../measurement.md#71-長さ上位20のフレームの中央値)）と同じにする。違うのは「1円玉の縮尺の代わりに、深度と焦点距離で mm にする」所だけにして、AIの効果だけを比べられるようにする。
 
-関連：[method.md](method.md)、[experiment.md](experiment.md)、[tasks.md](tasks.md)
+関連：[method.md](method.md)、[experiment.md](experiment.md)、[tasks.md](tasks.md)、動かし方は [experiments/depth_scale/README.md](../../experiments/depth_scale/README.md)
+
+- 実装の状況（2026-11-07）：①〜⑤とテストを作った。テストは19件すべて通る（重みなし）。Depth Pro の重みは、ライセンスの確認（DS1）が済むまで入れていないので、本物の深度ではまだ動かしていない
 
 ---
 
@@ -14,7 +16,8 @@
 ```
 experiments/depth_scale/
 ├── README.md              動かし方（この仕様書へのリンク）
-├── requirements.txt       バージョンを固定する
+├── requirements.txt       ①②④⑤とテストに要るもの（バージョンを固定する）
+├── requirements-depth.txt ③で Depth Pro を使うときだけ入れるもの（DS1 が済んでから）
 ├── common.py              共通の関数（3Dに直す式、焦点距離の換算、集計、ファイルの読み書き）
 ├── extract_frames.py      ① 動画 → フレーム
 ├── landmarks.py           ② フレーム → 手の21点
@@ -105,7 +108,8 @@ data/
 | 項目 | 決めたこと |
 |---|---|
 | 入力 | `frames/`、`landmarks/`（`used=true` のフレームだけ） |
-| モデル | `--model depth_pro`（既定）。ほかの候補は、ライセンスを確かめてから足す（[method.md §3](method.md#3-候補のモデル)） |
+| モデル | `--model depth_pro`（既定）。ほかの候補は、ライセンスを確かめてから足す（[method.md §3](method.md#3-候補のモデル)）。`--model constant` は、重みなしで流れだけを確かめるための偽物（深度300mm一定、焦点距離は35mm換算26mm相当）で、結果を実験に使ってはいけない |
+| 重みの場所 | `--checkpoint` で指定する（省略すると Depth Pro の既定の場所）。重みはリポジトリの外に置く |
 | 条件 | `--cond A`・`B`・`C`（[experiment.md §3](experiment.md#3-比べる条件)） |
 | 保存するもの | 深度マップの全体は保存しない（大きいため）。手首と指の付け根の5点（0・5・9・13・17）のまわり 31×31px の深度（mm、float32）だけを `depth/{rec_id}/{cond}.npz` に保存する。キーは `f{index:03d}_p{点の番号}` |
 | 記録 | `depth/{rec_id}/{cond}.json`：フレームごとに `{index, f_px, f_source, infer_s}`。`f_px` は**元のフレーム（①の画像）の px** に直した焦点距離、`f_source` は `model` か `device`、`infer_s` は推論の秒数。GPUの名前とモデルの版も書く |
@@ -214,11 +218,15 @@ f_px（元のフレーム）= f_px（切り抜き）÷ s
 | 集計（§6.2） | 10枚分の長さ | 上位3枚（20%が3枚未満なので最低の3枚）の中央値 |
 | ずれの計算（§7.1） | 4区間が正解のちょうど 1.02 倍 | ずれ 2.0% |
 | 1人を除く補正（§7.2） | 3人のずれがすべて −4% | 補正後のずれが 0% |
+| 流れ（③〜⑤） | 偽物の深度（300mm一定）で、条件A・B・Cを通す | 4区間の長さが「画像の上の長さ × 300 ÷ 焦点距離」と一致する。条件Bでは「8枚」の集計も出る。深度に30mm足すと長さが 330/300 倍になる。⑤の表とずれが出る |
+
+テストは `tests/test_common.py`（計算）と `tests/test_pipeline.py`（流れ）にある。上の表のほかに、切り抜きの範囲（アプリと同じか）・8枚の選び方・画像の外の深度の扱いも確かめている。
 
 ## 9. 環境と決まり
 
 - Python 3.12。`experiments/depth_scale/.venv` を別に作る（`hand_mesh/` の環境と混ぜない）
-- PyTorch は `hand_mesh/` と同じ版（2.14.1、CUDA 13.2）にそろえる見込み。Depth Pro のコードは、版（コミット）を決めて入れる。ライブラリはすべて `requirements.txt` で版を固定する
+- 入れて確かめた版（2026-11-07）：numpy 2.5.4、opencv-python 5.0.0.93、mediapipe 1.2.2（Python 版。本番のブラウザ版 `@mediapipe/tasks-vision` も 1.2.2）、pytest 9.2.0
+- PyTorch は `hand_mesh/` と同じ版（2.14.1、CUDA 13.2）にそろえる見込み。Depth Pro は PyPI にないので、リポジトリのコミットを決めて入れ、`requirements-depth.txt` に書く。Depth Pro の README は Python 3.9 の環境で書かれていて、3.12 で動くかは要確認
 - モデルの重みはリポジトリに入れない（`data/` の外の、各ライブラリのキャッシュの場所に置く）
 - **ライセンスの確認（[tasks.md](tasks.md) の DS1）が済むまで、重みを取ってこない**
 - ログと出力に画像の中身を出さない。出すのは件数・秒数・数値だけ

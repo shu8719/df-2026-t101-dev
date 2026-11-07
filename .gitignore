@@ -51,3 +51,7 @@ app/web/js/*.map
 .localstore/
 # 作り直しの途中で退避したプロトタイプのファイル（あとで消す）
 .trash_proto_api/
+
+# 実験（AIの距離推定）の動画・フレーム・結果と環境（docs/depth-scale/scripts.md）
+experiments/depth_scale/data/
+experiments/depth_scale/.venv/
