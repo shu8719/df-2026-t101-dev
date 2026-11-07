@@ -99,6 +99,11 @@ def main(argv: list[str] | None = None) -> None:
         cv2.imwrite(str(paths["overlay"]), overlay, [cv2.IMWRITE_JPEG_QUALITY, 92])
         cv2.imwrite(str(paths["depth"]), dvis, [cv2.IMWRITE_JPEG_QUALITY, 92])
         cv2.imwrite(str(paths["side"]), np.hstack([overlay, dvis]), [cv2.IMWRITE_JPEG_QUALITY, 92])
+        # MoGe-2 の try_image_moge.py --compare-depth-pro で並べるための数値
+        common.save_json(out_dir / f"{a.image.stem}_depthpro.json", {
+            "model": "depth_pro", "image": a.image.name, "width": w, "height": h, "f_px": f_px, "infer_s": dt,
+            "radius_px": a.radius, "skin_offset_mm": a.skin_offset_mm,
+            "z_mm": {str(p): z for p, z in zs.items()}, "lengths_mm": lengths})
         print()
         print("画像を保存しました（data/ の中なのでコミットされません）：")
         for p in paths.values():

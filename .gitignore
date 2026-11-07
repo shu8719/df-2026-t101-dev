@@ -56,3 +56,6 @@ app/web/js/*.map
 experiments/depth_scale/data/
 experiments/depth_scale/.venv/
 experiments/depth_scale/checkpoints/
+experiments/depth_scale_moge2/data/
+experiments/depth_scale_moge2/.venv/
+experiments/depth_scale_moge2/checkpoints/
