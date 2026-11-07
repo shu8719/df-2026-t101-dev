@@ -162,7 +162,8 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--cond", default="A", help="A・B・C をカンマ区切りで（例：A,B,C）")
     ap.add_argument("--model", default="depth_pro", choices=["depth_pro", "constant"])
-    ap.add_argument("--checkpoint", type=Path, help="Depth Pro の重み（depth_pro.pt）の場所。省略すると既定の場所")
+    ap.add_argument("--checkpoint", type=Path, default=common.HERE / "checkpoints" / "depth_pro.pt",
+                    help="Depth Pro の重み（depth_pro.pt）の場所。既定は experiments/depth_scale/checkpoints/（コミットしない）")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args(argv)
     ids = common.rec_ids(a.rec, a.all)

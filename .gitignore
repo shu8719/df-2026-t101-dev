@@ -55,3 +55,4 @@ app/web/js/*.map
 # 実験（AIの距離推定）の動画・フレーム・結果と環境（docs/depth-scale/scripts.md）
 experiments/depth_scale/data/
 experiments/depth_scale/.venv/
+experiments/depth_scale/checkpoints/

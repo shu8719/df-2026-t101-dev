@@ -13,7 +13,9 @@ from pathlib import Path
 
 import common
 
-DEFAULT_MODEL = common.REPO / "app" / "web" / "mediapipe" / "models" / "hand_landmarker.task"
+APP_MODEL = common.REPO / "app" / "web" / "mediapipe" / "models" / "hand_landmarker.task"
+LOCAL_MODEL = common.HERE / "checkpoints" / "hand_landmarker.task"  # 本番と同じ取得先から取ったもの（コミットしない）
+DEFAULT_MODEL = APP_MODEL if APP_MODEL.exists() else LOCAL_MODEL
 EDGE = 0.05
 
 

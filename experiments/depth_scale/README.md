@@ -13,8 +13,17 @@ python -m venv .venv
 ```
 
 - ② で使う MediaPipe のモデルは、本番と同じ `app/web/mediapipe/models/hand_landmarker.task`。なければリポジトリの直下で `bash scripts/fetch_mediapipe.sh` を実行するか、`--model` で場所を指定する
-- ③ で Depth Pro を使うときは `requirements-depth.txt` を見て入れる。**重みのライセンスの確認（DS1）が済むまで入れない**
+- ③ で Depth Pro を使うときは `requirements-depth.txt` を見て入れる。重み（1.9GB）は `checkpoints/` に置く（コミットしない）
+- **Depth Pro の重みは研究目的だけのライセンス**（Apple Machine Learning Research Model License）。この実験（精度を測る）だけに使い、アプリには組み込まない
 - iPhone の動画（HEVC）を読めないときは ffmpeg が要る
+
+## 写真1枚で手軽に試す
+
+```powershell
+.venv\Scripts\python try_image.py <写真のパス>
+```
+
+手の甲を上にして机に置き、30cmほど上から撮った写真を渡すと、カメラから手までの距離と、手の甲の4区間の長さ（mm）を表示する。定規やノギスで測った値と比べる。写真はどこにも保存しない。
 
 ## データを置く
 

@@ -7,7 +7,8 @@
 
 関連：[method.md](method.md)、[experiment.md](experiment.md)、[tasks.md](tasks.md)、動かし方は [experiments/depth_scale/README.md](../../experiments/depth_scale/README.md)
 
-- 実装の状況（2026-11-07）：①〜⑤とテストを作った。テストは19件すべて通る（重みなし）。Depth Pro の重みは、ライセンスの確認（DS1）が済むまで入れていないので、本物の深度ではまだ動かしていない
+- 実装の状況（2026-11-08）：①〜⑤とテストを作った。テストは19件すべて通る。Depth Pro を入れ、試験画像で深度と焦点距離が出ることを確かめた（[tasks.md](tasks.md) の DS2）。手の写真・動画ではまだ動かしていない
+- 写真1枚で手軽に試す `try_image.py` も置いた（①〜⑤の流れの外。カメラから手までの距離と、手の甲の4区間の長さを表示する）
 
 ---
 
@@ -28,7 +29,7 @@ experiments/depth_scale/
 └── data/                  入力と出力（コミットしない。§2）
 ```
 
-- ルートの `.gitignore` に `experiments/depth_scale/data/` と `experiments/depth_scale/.venv/` を足す
+- ルートの `.gitignore` に `experiments/depth_scale/data/`・`experiments/depth_scale/.venv/`・`experiments/depth_scale/checkpoints/`（Depth Pro の重み）を足す
 - 各スクリプトは `--rec <撮影ID>`（1件）か `--all`（`recordings.csv` の全部）で動かす。出力がすでにあれば飛ばし、`--force` で作り直す
 
 ## 2. データの置き場所と形
@@ -109,7 +110,7 @@ data/
 |---|---|
 | 入力 | `frames/`、`landmarks/`（`used=true` のフレームだけ） |
 | モデル | `--model depth_pro`（既定）。ほかの候補は、ライセンスを確かめてから足す（[method.md §3](method.md#3-候補のモデル)）。`--model constant` は、重みなしで流れだけを確かめるための偽物（深度300mm一定、焦点距離は35mm換算26mm相当）で、結果を実験に使ってはいけない |
-| 重みの場所 | `--checkpoint` で指定する（省略すると Depth Pro の既定の場所）。重みはリポジトリの外に置く |
+| 重みの場所 | `experiments/depth_scale/checkpoints/depth_pro.pt`（1.9GB）。`.gitignore` に入れてコミットしない。`--checkpoint` で別の場所も指定できる |
 | 条件 | `--cond A`・`B`・`C`（[experiment.md §3](experiment.md#3-比べる条件)） |
 | 保存するもの | 深度マップの全体は保存しない（大きいため）。手首と指の付け根の5点（0・5・9・13・17）のまわり 31×31px の深度（mm、float32）だけを `depth/{rec_id}/{cond}.npz` に保存する。キーは `f{index:03d}_p{点の番号}` |
 | 記録 | `depth/{rec_id}/{cond}.json`：フレームごとに `{index, f_px, f_source, infer_s}`。`f_px` は**元のフレーム（①の画像）の px** に直した焦点距離、`f_source` は `model` か `device`、`infer_s` は推論の秒数。GPUの名前とモデルの版も書く |
@@ -227,7 +228,7 @@ f_px（元のフレーム）= f_px（切り抜き）÷ s
 - Python 3.12。`experiments/depth_scale/.venv` を別に作る（`hand_mesh/` の環境と混ぜない）
 - 入れて確かめた版（2026-11-07）：numpy 2.5.4、opencv-python 5.0.0.93、mediapipe 1.2.2（Python 版。本番のブラウザ版 `@mediapipe/tasks-vision` も 1.2.2）、pytest 9.2.0
 - PyTorch は `hand_mesh/` と同じ版（2.14.1、CUDA 13.2）にそろえる見込み。Depth Pro は PyPI にないので、リポジトリのコミットを決めて入れ、`requirements-depth.txt` に書く。Depth Pro の README は Python 3.9 の環境で書かれていて、3.12 で動くかは要確認
-- モデルの重みはリポジトリに入れない（`data/` の外の、各ライブラリのキャッシュの場所に置く）
-- **ライセンスの確認（[tasks.md](tasks.md) の DS1）が済むまで、重みを取ってこない**
+- モデルの重みはリポジトリに入れない（`checkpoints/` に置き、`.gitignore` に入れる）
+- Depth Pro の重みは研究目的だけのライセンスなので、手元の実験だけに使う（[tasks.md §3](tasks.md#3-ライセンスで分かったことds12026-11-07)）
 - ログと出力に画像の中身を出さない。出すのは件数・秒数・数値だけ
 - 実験が終わったら `data/raw/`・`data/frames/`・`data/depth/` を消す（`results/` の数値は残してよい）

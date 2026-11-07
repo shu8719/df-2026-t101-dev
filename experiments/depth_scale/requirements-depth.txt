@@ -1,12 +1,17 @@
 # ③ depth.py で Depth Pro を使うときだけ入れる。
-# 重みのライセンス（Hugging Face の apple-amlr）の確認（docs/depth-scale/tasks.md の DS1）が済むまで入れない。
+# 重みは研究目的だけのライセンス（Apple Machine Learning Research Model License、apple-amlr）。
+# 手元の実験だけに使い、アプリには組み込まない（docs/depth-scale/tasks.md §3）。
 #
 # PyTorch は hand_mesh/ と同じ版（CUDA 13.2）：
 #   .venv\Scripts\python -m pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu132
 #
-# Depth Pro は PyPI にないので、リポジトリのコミットを決めて入れる（コミットは入れるときに決めて、ここに書く。要確認）：
-#   .venv\Scripts\python -m pip install "git+https://github.com/apple/ml-depth-pro@<コミット>"
+# Depth Pro は PyPI にないので、コミットを固定して入れる（2026-11-07 の最新）：
+#   .venv\Scripts\python -m pip install "git+https://github.com/apple/ml-depth-pro@9e65e4dbe9568d23c546fcec53302b10445e109e"
 #
-# 重み（depth_pro.pt）は、リポジトリの外に置く。例：
-#   .venv\Scripts\hf download apple/DepthPro --local-dir <リポジトリの外のフォルダ>
+# Depth Pro は numpy<2 を指定していて、入れると numpy が 1.26 に下がる。OpenCV 5 と MediaPipe は numpy 2 以上が要るので、
+# 入れたあとに numpy を戻す（pip が「depth-pro は numpy<2 が要る」と警告を出すが、2026-11-07 に numpy 2.5.4 で動くことを確かめた）：
+#   .venv\Scripts\python -m pip install numpy==2.5.4
+#
+# 重み（depth_pro.pt、1.9GB）は checkpoints/ に置く（.gitignore に入っているのでコミットされない）：
+#   .venv\Scripts\hf download apple/DepthPro --local-dir checkpoints
 huggingface-hub
