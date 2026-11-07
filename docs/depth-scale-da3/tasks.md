@@ -13,10 +13,10 @@
 
 | ID | タスク | 担当 | 期限 | 完了条件 | 状況（2026-11-08） |
 |---|---|---|---|---|---|
-| D1 | 環境を作る | 未定 | 最初に | `experiments/depth_scale_da3/` に別の仮想環境があり、Depth Anything 3（版を固定）と PyTorch が入り、手元のGPUで `DA3METRIC-LARGE` と `DA3-BASE` の重みが読み込める。`data/`・`.venv/`・`checkpoints/` が `.gitignore` に入っている | 未着手 |
-| D2 | 深度の直し方を確かめる | 未定 | D1 のあと | 処理の大きさ、「÷300」の焦点距離をどの画像の px で数えるか、出力の単位、焦点距離を渡せるかが、コードを読んで分かり、[scripts.md §3](scripts.md#3-da3_backendpy) に書いてある | 未着手 |
-| D3 | `da3_backend.py`・`focal_sources.py`・`try_image_da3.py` とテスト | 未定 | D2 のあと | 写真1枚で、4つの組み合わせの距離・焦点距離・4区間の長さと、結果の画像が出る。テストが通る | 未着手 |
-| D4 | 写真1枚で比べる | 未定 | D3 のあと | [experiment.md §3.1](experiment.md#31-写真1枚) の表が、正解の値と一緒に埋まり、[method.md §3](method.md#結果での判断) の判断が書いてある | 未着手 |
+| D1 | 環境を作る | 未定 | 最初に | 共通の環境（`experiments/depth_scale/.venv`）に Depth Anything 3（コミット固定）が入り、手元のGPUで `DA3METRIC-LARGE` と `DA3-BASE` の重みが読み込める。`data/`・`checkpoints/` が `.gitignore` に入っている | **済み（重みの読み込みは D4 で）**。はじめ別の環境を作ってディスクが満杯になり、PyTorch も 2.15.0 に入れ替わったので、環境を1つにまとめた（[scripts.md §8](scripts.md#8-環境と決まり)） |
+| D2 | 深度の直し方を確かめる | 未定 | D1 のあと | 処理の大きさ、「÷300」の焦点距離をどの画像の px で数えるか、出力の単位、焦点距離を渡せるかが、コードを読んで分かり、[scripts.md §3](scripts.md#3-da3_backendpy) に書いてある | **済み**。長い辺 504px・14px の倍数、「÷300」の焦点距離は縮めた画像の px（fx・fy の平均）。カメラの情報を渡さなければ出力は掛ける前の値。内容は `da3_backend.py` の冒頭に書いた |
+| D3 | `da3_backend.py`・`focal_sources.py`・`try_image_da3.py` とテスト | 未定 | D2 のあと | 写真1枚で、4つの組み合わせの距離・焦点距離・4区間の長さと、結果の画像が出る。テストが通る | **コードとテストはできた**（テスト11件が通る） |
+| D4 | 写真1枚で比べる | 未定 | D3 のあと | [experiment.md §3.1](experiment.md#31-写真1枚) の表が、正解の値と一緒に埋まり、[method.md §3](method.md#結果での判断) の判断が書いてある | **済み（正解の数値はまだ）**。①が外れた（長さが Depth Pro より約25%大きい）。DA3 では焦点距離が長さにほとんど効かないことも分かった。次は予備の候補（MapAnything）か、今後の課題とするかを決める |
 | D5 | 動画の ③④⑤ とテスト | 未定 | D4 で②が合ったら | [scripts.md §6](scripts.md#6-動画-depth_da3pymeasure_da3pycompare_all_da3py) のスクリプトが動き、テストが通る | 未着手 |
 | D6 | 動画で比べる | 未定 | Depth Pro 側の DS6（撮影とノギス）と MoGe-2 側の ③ のあと | [experiment.md §3.2](experiment.md#32-動画での比較) の表が埋まっている | 未着手 |
 | D7 | 使うかを決める | 全員 | 11/9 21:00 の打ち合わせ | 採用・確かめ用・今後の課題のどれにするかが [experiment.md §3.3](experiment.md#33-決めたこと) にある | 未着手 |

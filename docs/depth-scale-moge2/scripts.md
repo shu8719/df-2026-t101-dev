@@ -93,8 +93,8 @@ experiments/depth_scale_moge2/
 
 ## 8. 環境と決まり
 
-- Python 3.12。`experiments/depth_scale_moge2/.venv` を別に作る
-- PyTorch は Depth Pro 側と同じ版（2.14.1、CUDA 13.2）にそろえる見込み。MoGe はコミットを固定して入れる（`pip install "git+https://github.com/microsoft/MoGe.git@<コミット>"`）。入れたときのコミットと、主なライブラリの版を `requirements.txt` に書く
-- MoGe が numpy や OpenCV の版を指定していて、Depth Pro 側の `common.py`（numpy 2）とぶつかる場合は、この環境の中で解決する（Depth Pro 側の環境には手を入れない）
+- **仮想環境は Depth Pro 側の `experiments/depth_scale/.venv` を共通で使う**（2026-11-08 に変更）。はじめは実験ごとに別の環境を作ったが、PyTorch（約3GB）が重なってディスクが満杯になったため。Depth Pro 側と MoGe-2 側の環境は、PyTorch 2.14.1（CUDA 13.2）・numpy 2.5.4 で中身の版が同じだった
+- 追加のライブラリは、版の固定 `experiments/constraints.txt` を `-c` で渡して入れる（PyTorch・numpy が勝手に変わらないように）
+- MoGe はコミット `74fbce0` を固定して入れる（`requirements.txt`）
 - MediaPipe はこの環境では使わない（②は Depth Pro 側の出力を読むため）。ただし `try_image_moge.py` で写真から点を出すときだけ使うので、`requirements.txt` に入れる
 - 重みはリポジトリに入れない。ログと出力に画像の中身を出さない

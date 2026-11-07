@@ -1,0 +1,9 @@
+# 実験（experiments/）で共通に使う仮想環境 experiments/depth_scale/.venv の版の固定。
+# 追加のライブラリを入れるときは必ず -c で渡し、PyTorch・numpy が勝手に入れ替わらないようにする：
+#   .venv\Scripts\python -m pip install --no-cache-dir -c ..\constraints.txt <ライブラリ>
+# （2026-11-08 に、DA3 の依存を入れたとき PyTorch が 2.15.0 に入れ替わる事故があったため）
+torch==2.14.1
+torchvision==0.29.1
+numpy==2.5.4
+opencv-python==5.0.0.93
+mediapipe==1.2.2

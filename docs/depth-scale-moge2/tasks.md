@@ -13,7 +13,7 @@
 
 | ID | タスク | 担当 | 期限 | 完了条件 | 状況（2026-11-08） |
 |---|---|---|---|---|---|
-| M1 | 環境を作る | 未定 | 最初に | `experiments/depth_scale_moge2/` に別の仮想環境があり、MoGe（コミット固定）と PyTorch が入り、手元のGPUで `vitl`・`vits` の重みが読み込める。`data/`・`.venv/`・`checkpoints/` が `.gitignore` に入っている | **済み**。MoGe はコミット `74fbce0`。numpy 2.5.4 のままで動き、Depth Pro 側とぶつからない。重みは vitl と vits で合わせて 1.4GB |
+| M1 | 環境を作る | 未定 | 最初に | `experiments/depth_scale_moge2/` に別の仮想環境があり、MoGe（コミット固定）と PyTorch が入り、手元のGPUで `vitl`・`vits` の重みが読み込める。`data/`・`.venv/`・`checkpoints/` が `.gitignore` に入っている | **済み**。MoGe はコミット `74fbce0`。numpy 2.5.4 のままで動き、Depth Pro 側とぶつからない。重みは vitl と vits で合わせて 1.4GB。2026-11-08 に、別に作った環境は消し、Depth Pro 側の環境を共通で使う形にした（ディスクの節約） |
 | M2 | 単位とカメラの情報を確かめる | 未定 | M1 のあと | `points`・`depth` の単位と、正規化された `intrinsics` を px に直す式が、コードを読んで分かり、[scripts.md §3](scripts.md#3-moge_backendpy) に書いてある。写真1枚で、点群からの長さと深度からの長さの差が 0.5% 以内 | **済み**。`f_px = fx × 幅 = fy × 高さ`（`moge_backend.py` に書いた）。差は 0.15〜0.20%。単位は明記がなくメートルと見込んだ |
 | M3 | `moge_backend.py` と `try_image_moge.py` | 未定 | M2 のあと | 写真1枚から、カメラから手までの距離・焦点距離・4区間の長さと、結果の画像が出る | **済み**。マスク・面の向きの画像と、4枚まとめた画像も出す |
 | M4 | Depth Pro と並べる | 未定 | M3 のあと | Depth Pro で試したのと同じ写真の結果が、[experiment.md §4.1](experiment.md#41-写真1枚の確かめtry_imagepy) にある（ノギスの値があれば一緒に） | **済み（ノギスの値はまだ）**。MoGe-2 の長さは Depth Pro の約1.8倍で、大きさの推定が外れている見込み |

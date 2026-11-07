@@ -3,17 +3,19 @@
 仕様は [docs/depth-scale-moge2/scripts.md](../../docs/depth-scale-moge2/scripts.md)、手順は [docs/depth-scale-moge2/experiment.md](../../docs/depth-scale-moge2/experiment.md) を正とする。ここには動かし方だけを書く。
 
 - MoGe-2（Microsoft）は、コードも重みも MIT（中の DINOv2 は Apache-2.0）。本番の候補にできる
-- Depth Pro の実験（`../depth_scale/`）とは、仮想環境・重み・出力を分ける。ただし、フレーム・手の21点・ノギスの正解・1円玉の採寸は Depth Pro 側の `data/` を読み、計算は Depth Pro 側の `common.py` を使う（同じ条件で比べるため）
-- **本番のコード（`app/`・`api/`・`hand_mesh/`）は変えない。** 写真・動画・重み・結果はコミットしない（`data/`・`checkpoints/`・`.venv/` は `.gitignore` 済み）
+- Depth Pro の実験（`../depth_scale/`）とは、重み・出力を分ける。**仮想環境は Depth Pro 側の `../depth_scale/.venv` を共通で使う**（PyTorch を実験ごとに入れるとディスクを圧迫するため）。フレーム・手の21点・ノギスの正解・1円玉の採寸は Depth Pro 側の `data/` を読み、計算は Depth Pro 側の `common.py` を使う（同じ条件で比べるため）
+- **本番のコード（`app/`・`api/`・`hand_mesh/`）は変えない。** 写真・動画・重み・結果はコミットしない（`data/`・`checkpoints/` は `.gitignore` 済み）
 
 ## 準備（Windows、PowerShell）
 
+先に `../depth_scale/README.md` の準備を済ませ、その共通の環境に MoGe を入れる（版の固定は `..\constraints.txt`）。
+
 ```powershell
 cd experiments\depth_scale_moge2
-python -m venv .venv
-.venv\Scripts\python -m pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu132
-.venv\Scripts\python -m pip install -r requirements.txt
+..\depth_scale\.venv\Scripts\python -m pip install --no-cache-dir -c ..\constraints.txt -r requirements.txt
 ```
+
+以下のコマンドの `.venv\Scripts\python` は、`..\depth_scale\.venv\Scripts\python` と読み替える。
 
 - 重みは、初めて動かすときに Hugging Face から `checkpoints/` に取ってくる
 - 写真から手の21点を出すのに、Depth Pro 側の MediaPipe のモデル（`../depth_scale/checkpoints/hand_landmarker.task`）を使う

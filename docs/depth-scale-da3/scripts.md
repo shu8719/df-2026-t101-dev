@@ -94,7 +94,7 @@ experiments/depth_scale_da3/
 
 ## 8. 環境と決まり
 
-- Python 3.12。`experiments/depth_scale_da3/.venv` を別に作る
-- PyTorch は他の実験と同じ版（2.14.1、CUDA 13.2）にそろえる見込み。Depth Anything 3 は、版（PyPI の版か、コミット）を固定して入れ、`requirements.txt` に書く。`xformers` が要るかは要確認
+- **仮想環境は Depth Pro 側の `experiments/depth_scale/.venv` を共通で使う**（2026-11-08 に変更。PyTorch が実験ごとに重なり、ディスクが満杯になったため）。追加のライブラリは、版の固定 `experiments/constraints.txt` を `-c` で渡して入れる。固定を付けずに入れたら PyTorch が 2.15.0 に入れ替わったことがある
+- Depth Anything 3 はコミット `3d835ec` を固定し、**依存を入れずに（`--no-deps`）**入れる。本体は `numpy<2` と、open3d・xformers・gsplat など推論に要らない重いライブラリを指定しているため。推論の経路で読み込まれるものだけを `requirements.txt` に書いて入れる（xformers はなくても動く作り、open3d は性能評価だけ、gsplat は3Dの描画だけで使う）
 - MediaPipe は、写真1枚の確かめで点を出すためだけに入れる
 - 重みはリポジトリに入れない。ログと出力に画像の中身を出さない

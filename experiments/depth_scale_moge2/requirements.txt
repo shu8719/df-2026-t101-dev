@@ -1,5 +1,5 @@
-# MoGe-2 の実験（2026-11-08 に入れて確かめた版）。PyTorch は先に入れる（README.md）：
-#   torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cu132
+# MoGe-2 の実験（2026-11-08 に入れて確かめた版）。共通の環境（experiments/depth_scale/.venv）に入れる：
+#   ..\depth_scale\.venv\Scripts\python -m pip install --no-cache-dir -c ..\constraints.txt -r requirements.txt
 # MoGe（MIT）はコミットを固定する。utils3d-moge は MoGe が自動で入れる
 moge @ git+https://github.com/microsoft/MoGe.git@74fbce054ebed49800de42d0ad0e83495065719a
 huggingface_hub==2.4.0

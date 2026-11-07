@@ -6,11 +6,15 @@
 
 ## 準備（Windows、PowerShell）
 
+**この `.venv` は、3つの実験（Depth Pro・MoGe-2・Depth Anything 3）で共通に使う。** PyTorch（約3GB）を実験ごとに入れるとディスクを圧迫するため（2026-11-08 にディスクが満杯になった）。追加のライブラリは、必ず `..\constraints.txt` を `-c` で渡して入れ、PyTorch・numpy の版が勝手に変わらないようにする。
+
 ```powershell
 cd experiments\depth_scale
 python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m pip install --no-cache-dir -c ..\constraints.txt -r requirements.txt
 ```
+
+MoGe-2・Depth Anything 3 の分は、それぞれのフォルダの README を見て、この `.venv` に入れる。
 
 - ② で使う MediaPipe のモデルは、本番と同じ `app/web/mediapipe/models/hand_landmarker.task`。なければリポジトリの直下で `bash scripts/fetch_mediapipe.sh` を実行するか、`--model` で場所を指定する
 - ③ で Depth Pro を使うときは `requirements-depth.txt` を見て入れる。重み（1.9GB）は `checkpoints/` に置く（コミットしない）

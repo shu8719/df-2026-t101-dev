@@ -1,0 +1,17 @@
+# Depth Anything 3 の推論に要るもの（2026-11-08 に入れて確かめた）。共通の環境（experiments/depth_scale/.venv）に、
+# 版の固定（..\constraints.txt）を付けて入れる。本体は依存を入れずに別に入れる（README.md）。
+# xformers（なくても動く）・open3d（性能評価だけで使う）・gsplat（3D の描画だけで使う）は入れない。
+einops
+omegaconf
+addict
+imageio
+pillow_heif
+trimesh
+pycolmap
+moviepy==1.0.3
+plyfile
+evo
+e3nn
+typer
+requests
+safetensors
