@@ -32,3 +32,17 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# プロトタイプ（proto）で追加
+api/.data/
+.pytest_cache/
+app/.dart_tool/
+app/.flutter-plugins-dependencies
+app/*.iml
+env/*.json
+!env/example.json
+
+# MediaPipe の本体とモデル（scripts/fetch_mediapipe.sh で取得）
+app/web/mediapipe/
+app/web/opencv/
+app/web/js/*.map

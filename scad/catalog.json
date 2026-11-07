@@ -1,0 +1,51 @@
+{
+  "version": "proto-1",
+  "constants": {
+    "MIN_WALL_AROUND_BORE_MM": 3.0,
+    "MIN_EDGE_RADIUS_MM": 1.5,
+    "THREAD_LENGTH_MM": 15,
+    "COLLET_LENGTH_MM": 16,
+    "CLAMP_RANGE_MM": 3.0,
+    "CAPSULE_CLEARANCE_MM": 0.5,
+    "MAX_CARVE_RATIO": 0.29,
+    "BED_MM": [180, 180, 180]
+  },
+  "parts": {
+    "grip_body": {
+      "label_ja": "握り本体",
+      "variants": {
+        "fitted": "指のカプセルでくり抜き、くぼみを指に沿わせる",
+        "round": "断面が円。リング状のくぼみ",
+        "oval": "断面が楕円。手の中で回りにくい"
+      },
+      "params": {
+        "press_depth_mm": { "label_ja": "指に沿わせる深さ", "unit": "mm", "min": 0.5, "max": 3.0, "default": 1.5, "variants": ["fitted"], "ai_delta": null },
+        "end_margin_mm": { "label_ja": "両端の余白", "unit": "mm", "min": 8, "max": 20, "default": 12, "variants": ["fitted"], "ai_delta": null },
+        "length_mm": { "label_ja": "長さ", "unit": "mm", "min": 60, "max": 150, "default": 90, "variants": ["round", "oval"], "ai_delta": 10 },
+        "d_top_mm": { "label_ja": "人差し指側の太さ", "unit": "mm", "min": 18, "max": 55, "default": 32, "ai_delta": 3 },
+        "d_bottom_mm": { "label_ja": "小指側の太さ", "unit": "mm", "min": 18, "max": 55, "default": 32, "ai_delta": 5 },
+        "ovality": { "label_ja": "楕円の度合い", "unit": "", "min": 0.7, "max": 1.0, "default": 1.0, "variants": ["oval"], "ai_delta": null },
+        "groove_width_mm": { "label_ja": "くぼみの幅", "unit": "mm", "min": 10, "max": 24, "default": 16, "variants": ["round", "oval"], "ai_delta": null },
+        "groove_depth_mm": { "label_ja": "くぼみの深さ", "unit": "mm", "min": 0, "max": 4, "default": 2.0, "variants": ["round", "oval"], "ai_delta": null },
+        "bottom_flare_mm": { "label_ja": "下端のつば", "unit": "mm", "min": 0, "max": 6, "default": 3, "ai_delta": null },
+        "edge_radius_mm": { "label_ja": "角の丸み", "unit": "mm", "min": 1.5, "max": 5, "default": 2.5, "ai_delta": null }
+      }
+    },
+    "collet": {
+      "label_ja": "コレット（ねじ締め式）",
+      "variants": { "standard": "割りの入った筒をナットで締める" },
+      "params": {
+        "tool_d_max_mm": { "label_ja": "挟める一番太い柄の径", "unit": "mm", "min": 3.5, "max": 19, "default": 10.6, "ai_delta": 1 },
+        "slot_count": { "label_ja": "割りの数", "unit": "個", "min": 4, "max": 6, "default": 4, "ai_delta": null }
+      }
+    },
+    "collet_nut": {
+      "label_ja": "締めナット",
+      "variants": { "wings": "羽根付き。手のひらで回せる", "knurl": "ぎざぎざの丸形。目立たない" },
+      "params": {
+        "wing_span_mm": { "label_ja": "羽根の幅", "unit": "mm", "min": 40, "max": 64, "default": 50, "ai_delta": null },
+        "edge_radius_mm": { "label_ja": "角の丸み", "unit": "mm", "min": 1.5, "max": 4, "default": 2.0, "ai_delta": null }
+      }
+    }
+  }
+}
