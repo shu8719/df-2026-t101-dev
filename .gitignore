@@ -64,3 +64,5 @@ experiments/depth_scale_da3/.venv/
 experiments/depth_scale_da3/checkpoints/
 experiments/depth_scale_mapanything/data/
 experiments/depth_scale_mapanything/checkpoints/
+experiments/depth_scale_yolo26/data/
+experiments/depth_scale_yolo26/checkpoints/

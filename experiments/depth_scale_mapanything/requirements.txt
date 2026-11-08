@@ -1,0 +1,12 @@
+# MapAnything の推論に要るもの（2026-11-08 に入れて確かめた）。共通の環境（experiments/depth_scale/.venv）に、
+# 版の固定（..\constraints.txt）を付けて入れる。本体は依存を入れずに別に入れる（README.md）。
+# 本体の opencv-python-headless==4.10 の指定は、共通の環境の OpenCV 5 とぶつかるので守らない。
+uniception==0.1.7
+hydra-core
+natsort
+orjson
+python-box
+safetensors
+plyfile
+trimesh
+scipy
