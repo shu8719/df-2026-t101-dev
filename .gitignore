@@ -66,3 +66,5 @@ experiments/depth_scale_mapanything/data/
 experiments/depth_scale_mapanything/checkpoints/
 experiments/depth_scale_yolo26/data/
 experiments/depth_scale_yolo26/checkpoints/
+experiments/depth_scale_metricanything/data/
+experiments/depth_scale_metricanything/checkpoints/

@@ -10,6 +10,7 @@
 - 実験のコード：[experiments/depth_scale/](../../experiments/depth_scale/README.md)（ソースコードは `docs/` に置かない）
 - **MoGe-2 の実験**：Depth Pro の重みは研究目的だけなので、本番の候補として MIT ライセンスの MoGe-2 も試す。文書は [../depth-scale-moge2/](../depth-scale-moge2/README.md)、コードは `experiments/depth_scale_moge2/`
 - **モデルの比較**：これまでに試したモデルの作り・結果・後継の調査・補正の案は [comparison.md](comparison.md)
+- **MetricAnything の実験**（有志が公開、Apache-2.0）：文書は [../depth-scale-metricanything/](../depth-scale-metricanything/README.md)、コードは `experiments/depth_scale_metricanything/`
 - **YOLO26 Depth の実験と補正の評価**：文書は [../depth-scale-yolo26/](../depth-scale-yolo26/README.md)、コードは `experiments/depth_scale_yolo26/`
 - **MapAnything の実験**：MoGe-2・DA3 は大きく外れたので、本番で使えるライセンス（Apache-2.0）の最後の有力な候補として試す。文書は [../depth-scale-mapanything/](../depth-scale-mapanything/README.md)、コードは `experiments/depth_scale_mapanything/`
 - **Depth Anything 3 の実験**：MoGe-2 は焦点距離が正確で大きさが外れたので、MoGe-2 の焦点距離を DA3METRIC-LARGE（Apache-2.0）に渡す組み合わせを試す。文書は [../depth-scale-da3/](../depth-scale-da3/README.md)、コードは `experiments/depth_scale_da3/`

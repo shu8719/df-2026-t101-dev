@@ -80,23 +80,24 @@ class DA3Backend:
         CHECKPOINTS.mkdir(parents=True, exist_ok=True)
         self.model = DepthAnything3.from_pretrained(self.repo, cache_dir=str(CHECKPOINTS)).to(self.device).eval()
 
-    def _run(self, rgb: np.ndarray):
+    def _run(self, rgb: np.ndarray, process_res: int = 504):
         torch = self.torch
         if self.device.type == "cuda":
             torch.cuda.synchronize()
         t0 = time.perf_counter()
         with torch.no_grad():
-            pred = self.model.inference([rgb])
+            pred = self.model.inference([rgb], process_res=process_res)  # 既定は 504px（長い辺）
         if self.device.type == "cuda":
             torch.cuda.synchronize()
         return pred, time.perf_counter() - t0
 
-    def metric(self, rgb: np.ndarray, f_orig_px: float) -> MetricResult:
-        """DA3METRIC：焦点距離（元の画像の px）を与えて、実際の深度（mm、元の画像の大きさ）を返す"""
+    def metric(self, rgb: np.ndarray, f_orig_px: float, process_res: int = 504) -> MetricResult:
+        """DA3METRIC：焦点距離（元の画像の px）を与えて、実際の深度（mm、元の画像の大きさ）を返す。
+        process_res：DA3 が見る画像の長い辺（既定 504px。大きくすると細かく見る）"""
         if self.kind != "metric":
             raise RuntimeError("metric() は DA3METRIC-LARGE でだけ使う")
         h, w = rgb.shape[:2]
-        pred, dt = self._run(rgb)
+        pred, dt = self._run(rgb, process_res)
         canonical = np.asarray(pred.depth[0], dtype=np.float32)
         hp, wp = canonical.shape
         f_p = focal_for_processed(f_orig_px, (w, h), (wp, hp))
