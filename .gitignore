@@ -62,3 +62,5 @@ experiments/depth_scale_moge2/checkpoints/
 experiments/depth_scale_da3/data/
 experiments/depth_scale_da3/.venv/
 experiments/depth_scale_da3/checkpoints/
+experiments/depth_scale_mapanything/data/
+experiments/depth_scale_mapanything/checkpoints/

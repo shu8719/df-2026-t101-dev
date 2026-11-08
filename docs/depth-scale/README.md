@@ -9,6 +9,7 @@
 - ブランチ：`exp/depth-scale`（`impl` の `719f3d1` から作った）
 - 実験のコード：[experiments/depth_scale/](../../experiments/depth_scale/README.md)（ソースコードは `docs/` に置かない）
 - **MoGe-2 の実験**：Depth Pro の重みは研究目的だけなので、本番の候補として MIT ライセンスの MoGe-2 も試す。文書は [../depth-scale-moge2/](../depth-scale-moge2/README.md)、コードは `experiments/depth_scale_moge2/`
+- **MapAnything の実験**：MoGe-2・DA3 は大きく外れたので、本番で使えるライセンス（Apache-2.0）の最後の有力な候補として試す。文書は [../depth-scale-mapanything/](../depth-scale-mapanything/README.md)、コードは `experiments/depth_scale_mapanything/`
 - **Depth Anything 3 の実験**：MoGe-2 は焦点距離が正確で大きさが外れたので、MoGe-2 の焦点距離を DA3METRIC-LARGE（Apache-2.0）に渡す組み合わせを試す。文書は [../depth-scale-da3/](../depth-scale-da3/README.md)、コードは `experiments/depth_scale_da3/`
 - 状況（2026-11-07）：実験のスクリプトとテストはできた。Depth Pro の重みのライセンスが未確認なので、本物の深度ではまだ動かしていない（[tasks.md](tasks.md)）
 - 関連：[measurement.md](../measurement.md) §4（1円玉）・§7.1（長さの集計）・§8.2（実寸化）・§9（フォールバック）・§10（精度の確かめ方）、[non-functional.md](../non-functional.md) §4（プライバシー）・§8（安全）
