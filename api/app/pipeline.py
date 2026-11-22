@@ -124,6 +124,28 @@ def _upload_preview(case_id: str, design_id: str, result: dict, atts: list[dict]
 COVER_PARTS = ("cover", "air_holes", "strap_slits", "rail")   # カバーのSTLの形を決める部品
 
 
+def _cover_values(ps: list[Param]) -> dict:
+    return {p.key(): p.value for p in ps if p.part_id in COVER_PARTS}
+
+
+def reprint_parts(d: dict, base: dict) -> dict:
+    """報告した版 base と比べて、形が変わった部品の印刷用のキー（ADR-0015）。刷ったファイルのハッシュは使わない
+    （OpenSCAD は同じ入力でも毎回少し違うファイルを出す）。カバーは殻・カバーの部品の引数・採寸の版で、
+    クリップは取り付け具ごとの太さと角度で比べる。base に取り付け具の記録がなければ、クリップは変わったとみなす"""
+    same_cover = (d.get("cover_shell_sha256") == base.get("cover_shell_sha256")
+                  and d.get("hand_measurement_id") == base.get("hand_measurement_id")
+                  and _cover_values(validator.params_from_records(d.get("params") or []))
+                  == _cover_values(validator.params_from_records(base.get("params") or [])))
+    old = {a["id"]: a for a in base.get("attachments") or []}
+    changed, unchanged = [], []
+    (unchanged if same_cover else changed).append("cover")
+    for a in d.get("attachments") or []:
+        b = old.get(a["id"])
+        same = b is not None and (b.get("tool_d_mm"), b.get("angle_deg")) == (a.get("tool_d_mm"), a.get("angle_deg"))
+        (unchanged if same else changed).append(a.get("print_key") or print_key(a))
+    return {"base_design_id": base.get("design_id"), "changed": changed, "unchanged": unchanged}
+
+
 def clearance_of(params: list[Param]) -> float:
     """この版のカバーとこぶしのすき間：cover.clearance_mm（使ったあとの報告から直したとき。ADR-0015）、なければ固定値"""
     q = next((p for p in params if p.key() == ("cover", "clearance_mm")), None)
@@ -140,9 +162,7 @@ def _reuse_parent_cover(case: dict, parent: dict | None, params: list[Param], re
     if result["cover_shell_sha256"] != parent.get("cover_shell_sha256") \
             or case.get("measurement_id") != parent.get("hand_measurement_id"):
         return
-    def cover_values(ps: list[Param]) -> dict:
-        return {p.key(): p.value for p in ps if p.part_id in COVER_PARTS}
-    if cover_values(params) != cover_values(validator.params_from_records(parent.get("params") or [])):
+    if _cover_values(params) != _cover_values(validator.params_from_records(parent.get("params") or [])):
         return
     data = files.get(old_key)
     if data:
@@ -312,9 +332,11 @@ def _review_passed(r: dict) -> bool:
 
 def run(case_id: str, *, origin: str = "initial", parent: dict | None = None, style: dict | None = None,
         instruction: str | None = None, param_changes: list[dict] | None = None, clip_angle: int | None = None,
-        attachment_id: str | None = None, add_attachment: dict | None = None, tool_d: float | None = None) -> dict:
+        attachment_id: str | None = None, add_attachment: dict | None = None, tool_d: float | None = None,
+        fit_report: dict | None = None) -> dict:
     """1つの版を作る。呼ぶ前に権限と回数の確認（足すときは数・平たい柄・太さの範囲も）を済ませておくこと。
-    attachment_id は直す取り付け具（なければ主な取り付け具）"""
+    attachment_id は直す取り付け具（なければ主な取り付け具）。fit_report は使ったあとの報告から直すときの報告
+    （{report_id, design_id}。ADR-0015）"""
     ops.require_generation_enabled()
     case = db.get(f"cases/{case_id}")
     if not case or not case.get("hand_model"):
@@ -332,6 +354,12 @@ def run(case_id: str, *, origin: str = "initial", parent: dict | None = None, st
             "approval": {"status": "none"}, "created_at": now(), "warnings": [],
             "model": {"id": settings.gemini_model, "location": settings.gemini_location},
             "prompt_versions": gemini.PROMPT_VERSIONS}
+    # 報告から作る版は、報告した版（刷って使った版）を覚える。続けて直した版も引き継ぐ（刷り直す部品を比べる元）
+    refit_base = (fit_report or {}).get("design_id") or (parent or {}).get("refit_base_design_id")
+    if refit_base:
+        base["refit_base_design_id"] = refit_base
+    if fit_report:
+        base["fit_report_id"] = fit_report["report_id"]
     db.set(f"cases/{case_id}/designs/{design_id}", base)
     db.update(f"cases/{case_id}", {"current_design_id": design_id, "status": "designing"})
     workdir = tempfile.mkdtemp(prefix="jijogu_")
@@ -681,8 +709,15 @@ def design_view(case_id: str, design_id: str) -> dict:
     d = db.get(f"cases/{case_id}/designs/{design_id}") or {}
     keep = ("revision", "status", "parts", "params", "review", "warnings", "hand_overlay", "files", "approval",
             "summary_ja", "progress", "style", "clip_angle_deg", "clip", "tool", "error", "clamped", "geometry_hash", "origin",
-            "parent_design_id", "print_prepared_at", "attachments")
-    return {"design_id": design_id, **{k: d.get(k) for k in keep if k in d}}
+            "parent_design_id", "print_prepared_at", "attachments", "hand_clearance_mm", "fit_report_id",
+            "refit_base_design_id")
+    out = {"design_id": design_id, **{k: d.get(k) for k in keep if k in d}}
+    base_id = d.get("refit_base_design_id")
+    if base_id and d.get("status") in ("ready", "needs_attention"):
+        base = db.get(f"cases/{case_id}/designs/{base_id}")
+        if base:
+            out["reprint"] = reprint_parts(d, {**base, "design_id": base_id})
+    return out
 
 
 def prepare_print(case_id: str, design_id: str, kind: str) -> dict:

@@ -54,7 +54,7 @@ def delete_case(case_id: str, user: User = Depends(current_user)):
     case = owned_case(case_id, user)
     ops.assert_no_active(case)
     n_files = files.delete_prefix(f"cases/{case_id}/") + files.delete_prefix(f"internal/cases/{case_id}/")
-    for sub in ("designs", "messages"):
+    for sub in ("designs", "messages", "fit_reports"):
         for doc_id, _ in db.list(f"cases/{case_id}/{sub}"):
             db.delete(f"cases/{case_id}/{sub}/{doc_id}")
     db.delete(f"cases/{case_id}")
