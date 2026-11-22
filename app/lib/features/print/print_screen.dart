@@ -4,8 +4,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:jijogu_app/app/router.dart';
 import 'package:jijogu_app/core/api/api.dart';
 import 'package:jijogu_app/core/models/attachments.dart';
+import 'package:jijogu_app/core/models/fit_report.dart';
 import 'package:jijogu_app/core/ui/ui.dart';
 import 'package:jijogu_app/features/print/download.dart';
+import 'package:jijogu_app/features/print/fit_report_panel.dart';
 
 /// 部品ごとの材料（Figma の札）
 const _partMaterial = {'cover': 'PLA', 'c_clip': 'PETG', 'tpu_sleeve': 'TPU'};
@@ -95,6 +97,8 @@ class _PrintScreenState extends State<PrintScreen> {
     final comment = '${d?['approval']?['comment_ja'] ?? ''}'.trim();
     final canAdd = d != null &&
         canAddFromPrint(d, (_case?['requirements'] as Map?)?.cast<String, dynamic>(), ready: ready);
+    // 使ったあとの報告（ADR-0015）：印刷用データを読める最新の版だけ
+    final canReport = d != null && canReportFit(d, _case, ready: ready);
     return AppPage(
       title: '印刷と使い方',
       bottom: ready
@@ -138,8 +142,8 @@ class _PrintScreenState extends State<PrintScreen> {
             icon: Icons.lock_outline_rounded,
             child: Text('OTの確認が済むとダウンロードできます。'),
           ),
-        // 取り付け具を足した・太さを直した版（ADR-0014 §4）
-        if (d != null && coverKept(d))
+        // 取り付け具を足した・太さを直した版（ADR-0014 §4）。報告から作った版は、行ごとの「刷り直す」で示す
+        if (d != null && coverKept(d) && needsReprint(d, 'cover') == null)
           const InfoCard(
             tone: NoticeTone.success,
             icon: Icons.check_circle_outline_rounded,
@@ -161,6 +165,7 @@ class _PrintScreenState extends State<PrintScreen> {
               name: r.name,
               fileName: r.path.split('/').last,
               howTo: _partHowTo[r.partId],
+              reprint: needsReprint(d!, r.key),
               onDownload: () => _dl(r.key, r.path),
               downloadLabel: '${multi ? r.name : (printPartJa[r.partId] ?? r.key)}をダウンロード',
             ),
@@ -176,6 +181,13 @@ class _PrintScreenState extends State<PrintScreen> {
           ),
           const SizedBox(height: 6),
         ],
+        if (canReport)
+          FitReportPanel(
+            key: ValueKey(d['design_id']),
+            caseId: widget.caseId,
+            design: d,
+            requirements: (_case?['requirements'] as Map?)?.cast<String, dynamic>(),
+          ),
         if (d != null) ...[
           // 確認前（ダウンロードできないとき）も刷り方は読めるようにする
           if (!ready) ...[
@@ -448,11 +460,15 @@ class _PartCard extends StatelessWidget {
     required this.howTo,
     required this.onDownload,
     required this.downloadLabel,
+    this.reprint,
   });
   final String partId;
   final String name;
   final String fileName;
   final String? howTo;
+
+  /// 報告から作った版で、刷り直すか（true）、刷ってあるものを使えるか（false）。null なら出さない（ADR-0015）
+  final bool? reprint;
   final VoidCallback onDownload;
   final String downloadLabel;
 
@@ -486,9 +502,19 @@ class _PartCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name, style: AppText.titleMedium),
-                if (material != null) ...[
+                if (material != null || reprint != null) ...[
                   const SizedBox(height: 4),
-                  StatusLabel(label: material),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (material != null) StatusLabel(label: material),
+                      if (reprint == true)
+                        const StatusLabel(label: '刷り直す', tone: StatusTone.warning, icon: Icons.print_rounded),
+                      if (reprint == false)
+                        const StatusLabel(label: '刷ってあるものをそのまま使えます', tone: StatusTone.success),
+                    ],
+                  ),
                 ],
                 const SizedBox(height: 4),
                 if (howTo != null) Text(howTo!, style: AppText.supporting),

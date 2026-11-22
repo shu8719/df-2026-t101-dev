@@ -15,6 +15,7 @@ class MockBackend {
 
   final _cases = <String, Map<String, dynamic>>{};
   final _designs = <String, Map<String, dynamic>>{};
+  final _reports = <String, Map<String, dynamic>>{}; // 使ったあとの報告（ADR-0015）
   final _rand = Random(7);
   int _n = 0;
 
@@ -224,6 +225,9 @@ class MockBackend {
       if (method == 'POST' && act == 'refine') {
         return _refine(c, d, b);
       }
+      if (method == 'POST' && act == 'fit-report') {
+        return _fitReport(c, d, b);
+      }
       if (method == 'POST' && act == 'prepare-print') {
         d['print_prepared_at'] = DateTime.now().toIso8601String();
         d['files']['print'] = _printFiles(d);
@@ -278,6 +282,11 @@ class MockBackend {
       throw ApiError('${kinds.join('・')} のどれか1つだけを送ってください', code: 'INVALID_ARGUMENT');
     }
     final k = keys.first;
+    // 使ったあとの報告から直す（api.md §3.14）：直す版について出した報告だけ
+    final rid = b['fit_report_id'];
+    if (rid != null && (_reports[rid]?['design_id'] != d['design_id'] || k == 'style')) {
+      throw ApiError('この版について出した報告ではありません', code: 'INVALID_ARGUMENT');
+    }
     final aid = b['attachment_id'];
     if (aid != null && aid is! String) {
       throw ApiError('attachment_id は文字列で送ってください', code: 'INVALID_ARGUMENT');
@@ -307,7 +316,14 @@ class MockBackend {
     );
     var origin = k == 'instruction' ? 'refine_text' : 'refine_params';
     var changedReq = false;
+    var clearance = _clearanceOf(d);
     switch (k) {
+      case 'param_changes':
+        for (final ch in b['param_changes'] as List) {
+          if (ch['part_id'] == 'cover' && ch['name'] == 'clearance_mm') {
+            clearance = ((ch['value'] as num).toDouble()).clamp(1.0, 2.0);
+          }
+        }
       case 'clip_angle_deg':
         final a = (b['clip_angle_deg'] as num).toInt();
         if (!const [60, 70, 80].contains(a)) {
@@ -349,14 +365,100 @@ class MockBackend {
         for (final k in const ['tool_d_mm', 'tool_d_source']) k: p[k],
       };
     }
-    return _newDesign(
+    final nd = _newDesign(
       c,
       atts: atts,
       color: d['style']?['color'] ?? '#2A9D8F',
       revision: (d['revision'] as int) + 1,
       note: b['instruction'],
       origin: origin,
+      clearance: clearance,
     );
+    // 報告から作る版は、報告した版を覚え、続けて直した版も引き継ぐ。刷り直す部品を比べる
+    final design = nd['design'] as Map<String, dynamic>;
+    final baseId = rid != null ? d['design_id'] : d['refit_base_design_id'];
+    if (rid != null) {
+      design['fit_report_id'] = rid;
+      _reports[rid]!['refine_design_id'] = design['design_id'];
+    }
+    final base = _designs[baseId];
+    if (base != null) {
+      design['refit_base_design_id'] = baseId;
+      design['reprint'] = _reprint(design, base);
+    }
+    return nd;
+  }
+
+  double _clearanceOf(Map<String, dynamic> d) => ((d['hand_clearance_mm'] as num?) ?? 1.5).toDouble();
+
+  /// 報告した版と比べて、形が変わった部品（生成APIの pipeline.reprint_parts と同じ考え方）
+  Map<String, dynamic> _reprint(Map<String, dynamic> d, Map<String, dynamic> base) {
+    final old = {for (final a in (base['attachments'] as List? ?? const [])) a['id']: a};
+    final changed = <String>[], unchanged = <String>[];
+    (_clearanceOf(d) == _clearanceOf(base) ? unchanged : changed).add('cover');
+    for (final a in (d['attachments'] as List? ?? const [])) {
+      final o = old[a['id']];
+      final same = o != null && o['tool_d_mm'] == a['tool_d_mm'] && o['angle_deg'] == a['angle_deg'];
+      (same ? unchanged : changed).add('${a['print_key']}');
+    }
+    return {'base_design_id': base['design_id'], 'changed': changed, 'unchanged': unchanged};
+  }
+
+  /// 使ったあとの報告（api.md §3.14、生成APIの refit.advise と同じ決め方）
+  Map<String, dynamic> _fitReport(Map<String, dynamic> c, Map<String, dynamic> d, Map<String, dynamic> b) {
+    if (c['current_design_id'] != d['design_id']) {
+      throw ApiError('形が新しくなっています。画面を読み込み直してください', code: 'STALE_DESIGN');
+    }
+    if (((d['files']?['print'] as Map?) ?? const {}).isEmpty) {
+      throw ApiError('印刷用のデータを出した版だけ報告できます', code: 'CONFLICT');
+    }
+    final part = b['part'], result = b['result'];
+    final felt = b['felt_changed'] == true;
+    const results = ['good', 'loose', 'tight_pain', 'red', 'tool_slips'];
+    final atts = [for (final a in (d['attachments'] as List? ?? const [])) Map<String, dynamic>.from(a as Map)];
+    final att = atts.where((a) => a['id'] == part).firstOrNull;
+    if (!results.contains(result) || (part != 'cover' && att == null) || (part == 'cover' && result == 'tool_slips')) {
+      throw ApiError('入力の形が正しくありません', code: 'INVALID_ARGUMENT');
+    }
+    final id = _id('fr');
+    _reports[id] = {'design_id': d['design_id'], 'part': part, 'result': result, 'felt_changed': felt};
+    Map<String, dynamic> advice(String kind, String msg, [Map<String, dynamic>? proposal]) =>
+        {'report_id': id, 'advice': {'kind': kind, 'message_ja': msg, 'proposal': proposal}};
+    if (result == 'red') return advice('stop', 'すぐに使うのをやめて、作業療法士に相談してください。');
+    if (result == 'good') return advice('none', 'ありがとうございます。記録しました。');
+    final cover = part == 'cover';
+    final cur = cover ? _clearanceOf(d) : (att!['tool_d_mm'] as num).toDouble();
+    final smaller = result == 'loose' || result == 'tool_slips';
+    final to = smaller ? cur - 0.25 : cur + 0.25;
+    final (lo, hi) = cover ? (1.0, 2.0) : (3.5, 20.0);
+    if (to < lo || to > hi) return advice('consult', 'これ以上は自動で直せません。作業療法士に相談してください。');
+    String g(num v) => v == v.roundToDouble() ? '${v.toInt()}' : '$v';
+    final proposal = cover
+        ? {
+            'part': 'cover', 'name': 'clearance_mm', 'from': cur, 'to': to,
+            'summary_ja': 'カバーとこぶしのすき間を ${g(cur)}mm から ${g(to)}mm に${smaller ? '狭め' : '広げ'}ます',
+            'request': {
+              'param_changes': [
+                {'part_id': 'cover', 'name': 'clearance_mm', 'value': to},
+              ],
+              'fit_report_id': id,
+            },
+          }
+        : {
+            'part': part, 'name': 'tool_d_mm', 'from': cur, 'to': to,
+            'summary_ja': 'クリップの穴を 0.25mm ${smaller ? '小さく' : '大きく'}します（柄の太さの値を ${g(cur)}mm から ${g(to)}mm にします）',
+            'request': {'tool_d_mm': to, 'attachment_id': part, 'fit_report_id': id},
+          };
+    if (cover && !felt) {
+      return advice(
+        'felt',
+        result == 'loose'
+            ? 'まず、内側のフェルトを厚いものに替えてみてください。刷り直さずに合うことがあります。'
+            : 'まず、内側のフェルトを薄いものに替えてみてください。刷り直さずに合うことがあります。',
+        proposal,
+      );
+    }
+    return advice('refine', '下の内容で作り直せます。作り直した形も、作業療法士の確認を受けてから刷ります。', proposal);
   }
 
   Map<String, dynamic> _newDesign(
@@ -367,6 +469,7 @@ class MockBackend {
     required String origin,
     List<String> issues = const [],
     Object? note,
+    double? clearance,
   }) {
     final id = _id('d');
     // 今までの項目（params の c_clip・files.parts.c_clip）は主な取り付け具の値
@@ -453,6 +556,19 @@ class MockBackend {
           'reason_ja': '聞き取りの道具の太さ',
           'clamped': false,
         },
+        if (clearance != null && clearance != 1.5)
+          {
+            'part_id': 'cover',
+            'name': 'clearance_mm',
+            'value': clearance,
+            'unit': 'mm',
+            'range': [1.0, 2.0],
+            'baseline': null,
+            'source': 'user',
+            'override_by_user': true,
+            'reason_ja': '使ったあとの報告に合わせて、すき間を直しました',
+            'clamped': false,
+          },
         {
           'part_id': 'air_holes',
           'name': 'count',
@@ -482,6 +598,7 @@ class MockBackend {
         'views': {'iso': 'demo/iso.png'},
       },
       'attachments': atts,
+      'hand_clearance_mm': clearance ?? 1.5,
       'style': {'color': color, 'pattern': 'none'},
       'approval': {'status': 'none'},
       'summary_ja':
