@@ -278,7 +278,8 @@ def make_design(scaled_glb: bytes, joints_mm: dict, hand_side: str, params: dict
     slits_p = _merged(params, "strap_slits")
     clip_p = _merged(params, "c_clip")
     want_sleeve = bool(clip_p.get("tpu_sleeve")) or "tpu_sleeve" in parts
-    c = float(fixed("HAND_CLEARANCE_MM"))
+    # すき間 c：版の cover.clearance_mm（使ったあとの報告から直したとき。ADR-0015）、なければ固定値
+    c = float(cover_p.get("clearance_mm") or fixed("HAND_CLEARANCE_MM"))
     cover_p.setdefault("wrist_cut_mm", wrist_cut_default(Jc, float(fixed("WRIST_FREE_MM"))))
     cover_p["clearance_mm"] = c
 

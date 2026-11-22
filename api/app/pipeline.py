@@ -124,6 +124,12 @@ def _upload_preview(case_id: str, design_id: str, result: dict, atts: list[dict]
 COVER_PARTS = ("cover", "air_holes", "strap_slits", "rail")   # カバーのSTLの形を決める部品
 
 
+def clearance_of(params: list[Param]) -> float:
+    """この版のカバーとこぶしのすき間：cover.clearance_mm（使ったあとの報告から直したとき。ADR-0015）、なければ固定値"""
+    q = next((p for p in params if p.key() == ("cover", "clearance_mm")), None)
+    return float(q.value) if q is not None and q.value is not None else validator.fixed("HAND_CLEARANCE_MM", 1.5)
+
+
 def _reuse_parent_cover(case: dict, parent: dict | None, params: list[Param], result: dict, file_refs: dict) -> None:
     """カバーの入力が前の版と同じなら、カバーのプレビュー用STLを前の版の中身にする
     （OpenSCAD は同じ入力でも毎回少し違うSTLを出すため。ADR-0014 §4 カバーは前の版と同じ）。検査は描き直したもののまま"""
@@ -626,7 +632,7 @@ def run(case_id: str, *, origin: str = "initial", parent: dict | None = None, st
             "hand_overlay": {"mesh_path": case["hand_model"]["mesh_path"], "frame": "hand"},
             "hand_measurement_id": case.get("measurement_id"),
             "scale_factor": case["hand_model"].get("scale_factor"),
-            "hand_clearance_mm": validator.fixed("HAND_CLEARANCE_MM", 1.5),
+            "hand_clearance_mm": clearance_of(params),
             "cover_shell_sha256": result.get("cover_shell_sha256"),
             "clip_angle_deg": angle, "clip": result.get("clip"), "tool": result.get("tool"), "checks": result.get("checks", []),
             "attachments": atts,

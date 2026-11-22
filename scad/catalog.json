@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-08.3",
+  "version": "2026-11-22.1",
   "units": { "length": "mm", "angle": "deg" },
   "fixed": {
     "NOZZLE_MM": 0.4,
@@ -48,6 +48,7 @@
         { "name": "palm_cut_offset_mm", "unit": "mm", "type": "number", "default": 0.0, "min": -8.0, "max": 8.0, "choices": null, "decided_by": "ai", "ai_delta": null, "shell": true, "description_ja": "手のひら側を切る面の位置（PIP関節の中心の高さからのずれ）。負にすると手の甲の側へ寄り、カバーが小さくなる。正にしても、手のひら・指の腹を向いた面と中節より先は必ず捨てる" },
         { "name": "wrist_cut_mm", "unit": "mm", "type": "number", "default": 37.0, "min": 25.0, "max": 120.0, "choices": null, "decided_by": "measured", "ai_delta": 10.0, "shell": true, "description_ja": "手首の関節から、カバーが始まるまでの距離。基準は手首→中指の付け根の長さの40%。25mm 以上（手首を覆わない）、かつ 手首→中指の付け根の長さ − 15 以下" },
         { "name": "edge_radius_mm", "unit": "mm", "type": "number", "default": 2.0, "min": 1.5, "max": 4.0, "choices": null, "decided_by": "ai", "ai_delta": null, "shell": true, "description_ja": "ふちと切り口の丸み。1.5 未満は不可。厚みの1.5倍以下" },
+        { "name": "clearance_mm", "unit": "mm", "type": "number", "default": null, "min": 1.0, "max": 2.0, "choices": null, "decided_by": "report", "ai_delta": null, "shell": true, "description_ja": "カバーとこぶしのすき間 c（フェルトの厚みを含む）。使ったあとの報告から直すときだけ、0.25mm 刻みで変える（ADR-0015）。版にないときは HAND_CLEARANCE_MM。AI は変えない" },
         { "name": "shell_file", "unit": "path", "type": "string", "default": null, "min": null, "max": null, "choices": null, "decided_by": "server", "ai_delta": null, "shell": false, "description_ja": "殻のSTL（生成APIが作る）" },
         { "name": "keepout_file", "unit": "path", "type": "string", "default": null, "min": null, "max": null, "choices": null, "decided_by": "server", "ai_delta": null, "shell": false, "description_ja": "手を c だけ広げた立体（内側の面を守る。生成APIが作る）" },
         { "name": "print_matrix", "unit": "matrix", "type": "matrix", "default": null, "min": null, "max": null, "choices": null, "decided_by": "server", "ai_delta": null, "shell": false, "description_ja": "刷る向きへの変換（手のひら側の切り口を下）" }

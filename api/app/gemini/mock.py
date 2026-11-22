@@ -92,10 +92,12 @@ def refine(params: list, instruction: str) -> dict:
     elif re.search(r"立て", instruction):
         a = cur.get(("c_clip", "angle_deg"), 70)
         ch.append({"part_id": "c_clip", "name": "angle_deg", "value": min(80, a + 10), "reason_ja": "角度を1段立てました"})
-    elif re.search(r"きつく", instruction):
-        scale("c_clip", "wall_mm", True, 0.1)
-    elif re.search(r"ゆるく", instruction):
-        scale("c_clip", "wall_mm", False, 0.1)
+    elif re.search(r"きつく|ゆるく", instruction):
+        # 本物のプロンプト（refine.v1.md）と同じ：クリップの形は固定で、言葉では変えない。
+        # 前はクリップの壁の厚さ（固定の引数）を変えていて、本物と食い違っていた（2026-11-22）
+        return {"changes": [], "message_ja": "クリップの挟む強さは固定です。道具の太さが違うなら聞き取りの太さを直してください。"
+                "刷って使ってみて合わなかったときは、ダウンロードの画面の「使ってみてどうでしたか」から直せます。",
+                "clarify_ja": "", "override_by_user": False}
     elif re.search(r"蒸れ", instruction):
         n = cur.get(("air_holes", "count"), 6)
         ch.append({"part_id": "air_holes", "name": "count", "value": min(10, int(n) + 2), "reason_ja": "空気穴を増やしました"})
