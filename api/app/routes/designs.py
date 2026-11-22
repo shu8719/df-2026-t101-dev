@@ -1,15 +1,16 @@
-"""形を作る・直す・OTに頼む・承認・デモの印刷用データ（docs/api.md §3.4〜§3.7・§3.11）"""
+"""形を作る・直す・OTに頼む・承認・デモの印刷用データ・使ったあとの報告（docs/api.md §3.4〜§3.7・§3.11・§3.14）"""
 from __future__ import annotations
 
 import copy
 import json
+import uuid
 from functools import lru_cache
 
 from fastapi import APIRouter, Body, Depends
 from jsonschema import Draft202012Validator
 
-from .. import ops, pipeline, validator
-from ..attachments import MAX_ATTACHMENTS, flat_reason, stored_tools
+from .. import ops, pipeline, refit, validator
+from ..attachments import MAX_ATTACHMENTS, attachment_label, flat_reason, print_key, stored_tools
 from ..auth import User, current_user, is_therapist
 from ..config import SCHEMA_DIR
 from ..errors import ApiError
@@ -43,11 +44,15 @@ def _tool_validator():
     return Draft202012Validator(item)
 
 
-def _check_tool_d(v) -> float:
-    """人が入れる柄の太さは、要求の範囲（requirements.schema.json。3.5〜20mm）。カタログの範囲（c_clip.tool_d_mm）にも収める"""
+def _tool_d_range() -> tuple[float, float]:
+    """人が入れる柄の太さの範囲：要求の範囲（requirements.schema.json。3.5〜20mm）とカタログの範囲（c_clip.tool_d_mm）の重なり"""
     d = validator.param_def("c_clip", "tool_d_mm") or {}
     s = _tool_item()["properties"]["tool_d_mm"]
-    lo, hi = max(s.get("minimum", 3.5), d.get("min", 3.0)), min(s.get("maximum", 20.0), d.get("max", 20.0))
+    return max(s.get("minimum", 3.5), d.get("min", 3.0)), min(s.get("maximum", 20.0), d.get("max", 20.0))
+
+
+def _check_tool_d(v) -> float:
+    lo, hi = _tool_d_range()
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= v <= hi:
         raise ApiError("INVALID_ARGUMENT", f"柄の太さは {lo:g}〜{hi:g}mm で入れてください")
     return v
@@ -96,6 +101,13 @@ def refine(case_id: str, design_id: str, body: dict = Body(...), user: User = De
     if case.get("current_design_id") != design_id:
         raise ApiError("STALE_DESIGN")
     k = keys[0]
+    fit_report = None
+    if body.get("fit_report_id") is not None:   # 使ったあとの報告から直す（ADR-0015、api.md §3.14）
+        rid = body["fit_report_id"]
+        rep = db.get(f"cases/{case_id}/fit_reports/{rid}") if isinstance(rid, str) and "/" not in rid else None
+        if not rep or rep.get("design_id") != design_id or k == "style":
+            raise ApiError("INVALID_ARGUMENT", "この版について出した報告ではありません")
+        fit_report = {"report_id": rid, "design_id": design_id}
     aid = body.get("attachment_id")
     if aid is not None:
         if not isinstance(aid, str):
@@ -135,19 +147,26 @@ def refine(case_id: str, design_id: str, body: dict = Body(...), user: User = De
         tool = _check_new_tool(body["add_attachment"], atts, req)
     ops.require_generation_enabled()
     ops.count_usage(user.uid, "refines")
+    common = {"parent": d, "fit_report": fit_report}
     if k == "instruction":
-        return pipeline.run(case_id, origin="refine_text", parent=d, instruction=text, attachment_id=aid)
-    if k == "param_changes":
+        out = pipeline.run(case_id, origin="refine_text", instruction=text, attachment_id=aid, **common)
+    elif k == "param_changes":
         angle = [c for c in ch if c.get("part_id") == "c_clip" and c.get("name") == "angle_deg"]
         if angle and len(ch) == 1:
-            return pipeline.run(case_id, origin="refine_clip_angle", parent=d, clip_angle=int(angle[0]["value"]),
-                                attachment_id=aid)
-        return pipeline.run(case_id, origin="refine_params", parent=d, param_changes=ch, attachment_id=aid)
-    if k == "clip_angle_deg":
-        return pipeline.run(case_id, origin="refine_clip_angle", parent=d, clip_angle=a, attachment_id=aid)
-    if k == "tool_d_mm":
-        return pipeline.run(case_id, origin="refine_tool_d", parent=d, tool_d=tool_d, attachment_id=aid)
-    return pipeline.run(case_id, origin="refine_add_attachment", parent=d, add_attachment=tool)
+            out = pipeline.run(case_id, origin="refine_clip_angle", clip_angle=int(angle[0]["value"]),
+                               attachment_id=aid, **common)
+        else:
+            out = pipeline.run(case_id, origin="refine_params", param_changes=ch, attachment_id=aid, **common)
+    elif k == "clip_angle_deg":
+        out = pipeline.run(case_id, origin="refine_clip_angle", clip_angle=a, attachment_id=aid, **common)
+    elif k == "tool_d_mm":
+        out = pipeline.run(case_id, origin="refine_tool_d", tool_d=tool_d, attachment_id=aid, **common)
+    else:
+        out = pipeline.run(case_id, origin="refine_add_attachment", add_attachment=tool, **common)
+    new_id = (out.get("design") or {}).get("design_id")
+    if fit_report and new_id and out["design"].get("status") != "failed":
+        db.update(f"cases/{case_id}/fit_reports/{fit_report['report_id']}", {"refine_design_id": new_id})
+    return out
 
 
 @router.post("/v1/cases/{case_id}/review-request")
@@ -235,3 +254,40 @@ def prepare_print(case_id: str, design_id: str, user: User = Depends(current_use
         return {"files": {"print": prints}, "demo_notice_ja": "デモ用：OTの確認を省略しています。実際に使う前には必ずOTの確認が必要です"}
     finally:
         ops.end(case_id, op)
+
+
+@router.post("/v1/cases/{case_id}/designs/{design_id}/fit-report")
+def fit_report(case_id: str, design_id: str, body: dict = Body(...), user: User = Depends(current_user)):
+    """刷って使ったあとの報告を記録し、次にすることと直す案を返す（api.md §3.14、ADR-0015）。版は作らない"""
+    case = owned_case(case_id, user)
+    d = _design(case_id, design_id)
+    if case.get("current_design_id") != design_id:
+        raise ApiError("STALE_DESIGN")
+    if not ((d.get("files") or {}).get("print")):
+        raise ApiError("CONFLICT", "印刷用のデータを出した版だけ報告できます")
+    part, result, felt = body.get("part"), body.get("result"), body.get("felt_changed", False)
+    if result not in refit.RESULTS or not isinstance(felt, bool) or not isinstance(part, str):
+        raise ApiError("INVALID_ARGUMENT")
+    atts = pipeline._attachments_of(d, case.get("requirements") or {})
+    if part == "cover":
+        if result == "tool_slips":
+            raise ApiError("INVALID_ARGUMENT", "「道具が抜ける」はクリップのときだけ選べます")
+        cd = validator.param_def("cover", "clearance_mm") or {}
+        current = pipeline.clearance_of(validator.params_from_records(d.get("params") or []))
+        lo, hi, label, aid, key = cd.get("min", 1.0), cd.get("max", 2.0), "カバー", None, "cover"
+    else:
+        att = next((a for a in atts if a["id"] == part), None)
+        if att is None:
+            raise ApiError("INVALID_ARGUMENT", "この版にない部品です")
+        current = float(att["tool_d_mm"])
+        (lo, hi), label, aid = _tool_d_range(), attachment_label(att, atts), att["id"]
+        key = att.get("print_key") or print_key(att)
+    report_id = "fr_" + uuid.uuid4().hex[:8]
+    advice = refit.advise(part=part, result=result, felt_changed=felt, current=current, lo=lo, hi=hi,
+                          label=label, attachment_id=aid, report_id=report_id)
+    pr = advice["proposal"]
+    db.set(f"cases/{case_id}/fit_reports/{report_id}", {
+        "design_id": design_id, "part": part, "print_key": key, "result": result, "felt_changed": felt,
+        "advice_kind": advice["kind"], "proposal": {k: v for k, v in pr.items() if k != "request"} if pr else None,
+        "created_at": now()})
+    return {"report_id": report_id, "advice": advice}

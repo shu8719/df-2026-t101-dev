@@ -322,6 +322,7 @@ def test_delete_case(client):
     d = client.post(f"/v1/cases/{cid}/designs", headers=H, json={}).json()["design"]
     client.post(f"/v1/cases/{cid}/designs/{d['design_id']}/prepare-print", headers=H)
     db.set(f"cases/{cid}/messages/m1u", {"role": "user", "text": "テスト"})
+    db.set(f"cases/{cid}/fit_reports/fr_1", {"design_id": d["design_id"], "result": "good"})
     files.put(f"internal/cases/{cid}/cover/x/sdf", b"x")
     assert files.exists(f"cases/{cid}/hand/raw/{mesh_id}.glb")
     # 持ち主でない人は消せない
@@ -336,6 +337,7 @@ def test_delete_case(client):
     assert r.json()["deleted"] is True and r.json()["files_deleted"] > 0
     assert db.get(f"cases/{cid}") is None
     assert db.list(f"cases/{cid}/designs") == [] and db.list(f"cases/{cid}/messages") == []
+    assert db.list(f"cases/{cid}/fit_reports") == []
     assert not files.exists(f"cases/{cid}/hand/raw/{mesh_id}.glb")
     assert not files.exists(f"internal/cases/{cid}/cover/x/sdf")
     assert client.get(f"/v1/cases/{cid}", headers=H).status_code == 404
@@ -860,3 +862,137 @@ def test_print_violation_on_extra_clip_is_render_failed(client, monkeypatch):
     monkeypatch.setattr(GEOM, "make_design", bad)
     r = client.post(f"/v1/cases/{cid}/designs/{d['design_id']}/prepare-print", headers=H)
     assert r.status_code == 500 and r.json()["error"]["code"] == "RENDER_FAILED"
+
+
+# ---- 使ったあとの報告から直す（ADR-0015、api.md §3.14） ----
+
+def _printed_design(client, tools=None) -> tuple[str, dict]:
+    """最初の版を作り、デモの印刷用データを出す（刷って使った版）"""
+    cid, d = _design_with_tools(client, tools or [("draw", "brush", 9.5, "round")])
+    r = client.post(f"/v1/cases/{cid}/designs/{d['design_id']}/prepare-print", headers=H)
+    assert r.status_code == 200, r.text
+    return cid, d
+
+
+def _report(client, cid, did, **body):
+    return client.post(f"/v1/cases/{cid}/designs/{did}/fit-report", headers=H, json=body)
+
+
+def test_fit_report_needs_print_owner_and_valid_body(client):
+    cid, d = _design_with_tools(client, [("draw", "brush", 9.5, "round")])
+    did = d["design_id"]
+    r = _report(client, cid, did, part="cover", result="loose")
+    assert r.status_code == 409 and r.json()["error"]["code"] == "CONFLICT"     # まだ刷っていない版
+    client.post(f"/v1/cases/{cid}/designs/{did}/prepare-print", headers=H)
+    r = client.post(f"/v1/cases/{cid}/designs/{did}/fit-report", headers={"X-User": "u2"}, json={"part": "cover", "result": "good"})
+    assert r.status_code == 403
+    for body in ({"part": "cover", "result": "tool_slips"}, {"part": "a9", "result": "loose"},
+                 {"part": "cover", "result": "bad"}, {"part": "cover", "result": "loose", "felt_changed": "yes"}):
+        r = _report(client, cid, did, **body)
+        assert r.status_code == 400 and r.json()["error"]["code"] == "INVALID_ARGUMENT", (body, r.text)
+    assert db.list(f"cases/{cid}/fit_reports") == []                          # 断った報告は残さない
+
+
+def test_fit_report_advice_by_result(client):
+    cid, d = _printed_design(client)
+    did = d["design_id"]
+    r = _report(client, cid, did, part="cover", result="red")
+    a = r.json()["advice"]
+    assert r.status_code == 200 and a["kind"] == "stop" and a["proposal"] is None and "やめて" in a["message_ja"]
+    assert _report(client, cid, did, part="a1", result="good").json()["advice"]["kind"] == "none"
+    # カバーがゆるい：まずフェルト。直す案はすき間を 0.25mm 狭める
+    a = _report(client, cid, did, part="cover", result="loose").json()["advice"]
+    assert a["kind"] == "felt" and "フェルト" in a["message_ja"]
+    p = a["proposal"]
+    assert (p["name"], p["from"], p["to"]) == ("clearance_mm", 1.5, 1.25)
+    assert p["request"]["param_changes"][0] == {**p["request"]["param_changes"][0], "part_id": "cover",
+                                                "name": "clearance_mm", "value": 1.25}
+    # フェルトを替えても合わない：すぐ直す案。きつい・痛いは広げる
+    a = _report(client, cid, did, part="cover", result="tight_pain", felt_changed=True).json()["advice"]
+    assert a["kind"] == "refine" and a["proposal"]["to"] == 1.75
+    # クリップ：フェルトは案内しない。ゆるい・抜けるは柄の太さの値を小さく、きついは大きく
+    for result, to in (("loose", 9.25), ("tool_slips", 9.25), ("tight_pain", 9.75)):
+        a = _report(client, cid, did, part="a1", result=result).json()["advice"]
+        assert a["kind"] == "refine" and a["proposal"]["request"]["tool_d_mm"] == to, (result, a)
+        assert a["proposal"]["request"]["attachment_id"] == "a1"
+    reps = [x for _, x in db.list(f"cases/{cid}/fit_reports")]
+    assert len(reps) == 7 and all(x["design_id"] == did for x in reps)
+    assert {x["print_key"] for x in reps} == {"cover", "c_clip"}
+    assert all("request" not in (x["proposal"] or {}) for x in reps)
+
+
+def test_refit_cover_makes_new_version_and_reprints_only_cover(client):
+    cid, d = _printed_design(client)
+    did = d["design_id"]
+    rep = _report(client, cid, did, part="cover", result="loose", felt_changed=True).json()
+    r = client.post(f"/v1/cases/{cid}/designs/{did}/refine", headers=H, json=rep["advice"]["proposal"]["request"])
+    assert r.status_code == 200, r.text
+    n = r.json()["design"]
+    assert n["design_id"] != did and n["origin"] == "refine_params" and n["approval"]["status"] == "none"
+    cl = next(p for p in n["params"] if (p["part_id"], p["name"]) == ("cover", "clearance_mm"))
+    assert cl["value"] == 1.25 and cl["source"] == "user" and cl["range"] == [1.0, 2.0]
+    assert n["hand_clearance_mm"] == 1.25 and GEOM.calls[-1]["params"]["cover"]["clearance_mm"] == 1.25
+    assert n["fit_report_id"] == rep["report_id"] and n["refit_base_design_id"] == did
+    assert n["reprint"] == {"base_design_id": did, "changed": ["cover"], "unchanged": ["c_clip"]}
+    assert db.get(f"cases/{cid}/fit_reports/{rep['report_id']}")["refine_design_id"] == n["design_id"]
+    # 続けて角度を変えた版も、報告した版と比べる（クリップも変わる）
+    r = client.post(f"/v1/cases/{cid}/designs/{n['design_id']}/refine", headers=H, json={"clip_angle_deg": 80})
+    m = r.json()["design"]
+    assert m["refit_base_design_id"] == did and "fit_report_id" not in m
+    assert m["reprint"]["changed"] == ["cover", "c_clip"]
+    # 直した版はまだ刷っていないので報告できない
+    assert _report(client, cid, m["design_id"], part="cover", result="good").status_code == 409
+
+
+def test_refit_clip_reprints_only_that_clip(client):
+    cid, d = _printed_design(client, [("draw", "brush", 9.5, "round"), ("eat", "spoon", 12.0, "round")])
+    did = d["design_id"]
+    rep = _report(client, cid, did, part="a2", result="tool_slips").json()
+    req = rep["advice"]["proposal"]["request"]
+    assert req == {"tool_d_mm": 11.75, "attachment_id": "a2", "fit_report_id": rep["report_id"]}
+    r = client.post(f"/v1/cases/{cid}/designs/{did}/refine", headers=H, json=req)
+    assert r.status_code == 200, r.text
+    n = r.json()["design"]
+    a2 = next(a for a in n["attachments"] if a["id"] == "a2")
+    assert a2["tool_d_mm"] == 11.75 and n["origin"] == "refine_tool_d"
+    assert n["reprint"] == {"base_design_id": did, "changed": ["c_clip_a2"], "unchanged": ["cover", "c_clip"]}
+    assert n["hand_clearance_mm"] == 1.5
+
+
+def test_refine_rejects_fit_report_of_another_design(client):
+    cid, d = _printed_design(client)
+    did = d["design_id"]
+    for rid in ("fr_nothing", "../x", 3):
+        r = client.post(f"/v1/cases/{cid}/designs/{did}/refine", headers=H, json={"tool_d_mm": 9.0, "fit_report_id": rid})
+        assert r.status_code == 400, (rid, r.text)
+    rep = _report(client, cid, did, part="a1", result="loose").json()
+    db.update(f"cases/{cid}/fit_reports/{rep['report_id']}", {"design_id": "d_other"})
+    r = client.post(f"/v1/cases/{cid}/designs/{did}/refine", headers=H, json=rep["advice"]["proposal"]["request"])
+    assert r.status_code == 400
+    assert db.get(f"cases/{cid}")["current_design_id"] == did
+
+
+def test_refit_advice_stops_at_range_edges():
+    from app import refit
+    a = refit.advise(part="cover", result="loose", felt_changed=True, current=1.0, lo=1.0, hi=2.0, report_id="fr_x")
+    assert a["kind"] == "consult" and a["proposal"] is None
+    a = refit.advise(part="cover", result="tight_pain", felt_changed=True, current=1.75, lo=1.0, hi=2.0, report_id="fr_x")
+    assert a["kind"] == "refine" and a["proposal"]["to"] == 2.0
+    a = refit.advise(part="a1", result="tool_slips", felt_changed=False, current=3.5, lo=3.5, hi=20.0,
+                     label="ペン", attachment_id="a1", report_id="fr_x")
+    assert a["kind"] == "consult"
+
+
+def test_clearance_is_not_for_ai():
+    """カバーのすき間は報告から直すときだけ。Gemini の一覧・答えには入れず、人の値は範囲で止める（ADR-0015）"""
+    from app import validator
+    assert "clearance_mm" not in {q["name"] for q in validator.ai_params("cover")}
+    base = [validator.Param("cover", "cover_thickness_mm", 2.5, "default", "", 2.5)]
+    ch = [{"part_id": "cover", "name": "clearance_mm", "value": 1.25}]
+    ps, changed = validator.merge_changes(base, ch, source="ai")
+    assert changed == [] and len(ps) == 1
+    ps, changed = validator.merge_changes(base, [{**ch[0], "value": 0.5}], source="user", override_by_user=True)
+    res = validator.check(ps, selected_parts=list(validator.REQUIRED_PARTS), hand={}, requirements={},
+                          user_override_keys=set(changed))
+    assert validator.to_dict(res.params)["cover"]["clearance_mm"] == 1.0
+    assert any(c["name"] == "clearance_mm" and c["rule"] == "R2" for c in res.clamped)

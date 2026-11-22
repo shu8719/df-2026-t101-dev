@@ -33,10 +33,13 @@ def param_def(part_id: str, name: str) -> dict | None:
     return next((q for q in p.get("params", []) if q["name"] == name), None)
 
 
+NOT_FOR_AI = ("server", "fixed", "report")   # report：使ったあとの報告から直すときだけ変える（ADR-0015）
+
+
 def ai_params(part_id: str) -> list[dict]:
-    """Gemini が扱う引数（サーバーと固定は除く）"""
+    """Gemini が扱う引数（サーバー・固定・報告で決める引数は除く）"""
     p = part_defs().get(part_id, {})
-    return [q for q in p.get("params", []) if q.get("decided_by") not in ("server", "fixed")]
+    return [q for q in p.get("params", []) if q.get("decided_by") not in NOT_FOR_AI]
 
 
 @dataclass
@@ -207,6 +210,8 @@ def merge_changes(params: list[Param], changes: list[dict], *, source: str = "ai
     changed = []
     for c in changes:
         k = (c["part_id"], c["name"])
+        if source == "ai" and (param_def(*k) or {}).get("decided_by") == "report":
+            continue   # 報告で決める引数（カバーのすき間）は Gemini の答えに入っていても当てない（ADR-0015）
         if k in idx:
             p = idx[k]
             if p.value != c["value"]:

@@ -122,3 +122,35 @@ def test_make_design_extra_clip_shares_cover(tmp_path):
     rp = make_design(pm["scaled_glb"], pm["joints_mm"], "right", params, str(tmp_path / "c"), cache, quality="print", extra_clips={"a2": extra})
     m = trimesh.load(rp["extra_clips"]["a2"]["file"], force="mesh")
     assert m.is_watertight and abs(m.bounds[0][2]) < 0.05      # 刷る向き：机の面に乗る
+
+
+@pytest.mark.parametrize("name", ["hand_raw_fist", "hand_raw_right"])
+def test_make_design_clearance_follows_version_param(tmp_path, name):
+    """カバーのすき間を版ごとに変える（使ったあとの報告から直す。ADR-0015）。
+    手との距離がすき間に合わせて変わり、検査の結果は既定のすき間と同じ。距離場は使い回す"""
+    raw = fixture_glb(name)
+    J = parse_joints(read_glb(raw)[2]["joints_mm"])
+    pm = prepare_measurement(raw, make_measurement(J, 1.15), "right", {"tool_d_mm": 9.5, "tool_type": "brush"})
+    params = {}
+    for b in pm["baseline"]:
+        params.setdefault(b["part_id"], {})[b["name"]] = b["value"]
+    assert "clearance_mm" not in params["cover"]          # 最初の版には入らない（基準値にない）
+    cache = DirCache(tmp_path / "cache")
+    base = make_design(pm["scaled_glb"], pm["joints_mm"], "right", params, str(tmp_path / "base"), cache)
+    out = {}
+    for c in (1.0, 2.0):
+        p = {**params, "cover": {**params["cover"], "clearance_mm": c}}
+        r = make_design(pm["scaled_glb"], pm["joints_mm"], "right", p, str(tmp_path / f"c{c}"), cache)
+        assert "field_ms" not in r["timings_ms"]          # 距離場は採寸ごとに1回
+        assert r["cover_shell_sha256"] != base["cover_shell_sha256"]
+        ck = {x["rule"]: x for x in r["checks"]}
+        assert ck["R6e"]["ok"] and ck["R6e"]["value"]["clearance_mm"] == c, ck["R6e"]
+        assert r["violations"] == base["violations"]
+        assert {k for k, v in ck.items() if not v["ok"]} == {x["rule"] for x in base["checks"] if not x["ok"]}
+        cover = trimesh.load(r["files"]["cover"], force="mesh")
+        assert cover.is_watertight and len(cover.split(only_watertight=False)) == 1
+        out[c] = ck["R6e"]["value"]["min_dist_to_hand_mm"]
+    b = {x["rule"]: x for x in base["checks"]}["R6e"]["value"]
+    assert b["clearance_mm"] == 1.5
+    assert out[1.0] < b["min_dist_to_hand_mm"] < out[2.0]
+    assert out[2.0] - out[1.0] > 0.7                       # 1mm の差がほぼそのまま出る

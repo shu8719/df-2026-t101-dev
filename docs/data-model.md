@@ -25,6 +25,7 @@ therapists/{email}
 cases/{caseId}
 cases/{caseId}/messages/{messageId}
 cases/{caseId}/designs/{designId}
+cases/{caseId}/fit_reports/{reportId}
 usage/{yyyymmdd}
 usage/{yyyymmdd}/users/{uid}
 settings/runtime
@@ -106,7 +107,9 @@ settings/filaments
 | `geometry_hash` | string | OTに頼んだとき（デモのケースは印刷用データを作ったとき）に記録する。部品・引数・`cover_shell_sha256`・固定値の版を正規化したJSONのSHA-256（色は除く）。殻は手のメッシュから作るので、殻のファイルのハッシュを入れる。承認のときに、OT画面が見ていた版と同じかを確かめる |
 | `hand_measurement_id` | string | この版が使った採寸のID。実寸の手のメッシュ `cases/{caseId}/hand/{hand_measurement_id}.glb` を指す |
 | `scale_factor` | number | この版が使った倍率 k（未補正のメッシュ → 実寸） |
-| `hand_clearance_mm` | number | この版のカバーとこぶしのすき間（`HAND_CLEARANCE_MM`。フェルトの厚みを含む。11/9に値を変えても、前の版を同じ形で描き直せるよう記録する） |
+| `hand_clearance_mm` | number | この版のカバーとこぶしのすき間（フェルトの厚みを含む）。`params` に `cover.clearance_mm`（使ったあとの報告から直したとき。[ADR-0015](adr/0015-refit-reorder.md)）があればその値、なければ `HAND_CLEARANCE_MM`。値を変えても、前の版を同じ形で描き直せるよう記録する |
+| `fit_report_id` | string | この版を作るきっかけになった、使ったあとの報告（§2.5.1）。報告から作った版だけ |
+| `refit_base_design_id` | string | 報告した版（刷って使った版）。報告から作った版と、そこから続けて直した版が持つ（親の値を引き継ぐ）。版を読むときに、この版と比べて刷り直す部品 `reprint` を返す（[api.md §3.14](api.md#314-post-v1casescase_iddesignsdesign_idfit-report)。`reprint` は保存しない） |
 | `cover_shell_sha256` | string | カバーの殻（`cover_shell.stl`）のSHA-256。ファイルは採寸の版ごとのフォルダ `internal/cases/{caseId}/cover/{measurementId}/` の下（殻は `shell/<殻の引数のハッシュ24桁>`、内側を守る立体は `keepout/<メッシュのSHA-256の先頭16桁>_c<c を小数2桁>`、距離場は `sdf`）。採寸の版と、殻を決める引数が同じ版では同じ値になる |
 | `clip_angle_deg` | number | C字クリップの角度（道具の立て具合。60／70／80。2026-11-08 に 0／20／40 から変えた）。角度だけを変えた版は、カバーのファイルを前の版と共有する |
 | `tool` | map | 道具の軸（実際の手の座標、mm）：`center`（クリップの輪の中心）、`axis`（先の向き。単位ベクトル）、`tip_mm`（先までの長さ、100）、`rear_mm`（後ろまで、50）、`diameter_mm`。S7の3D表示はこの値で道具の棒を描く（クリップの形から推定しない。2026-11-08） |
@@ -122,6 +125,22 @@ settings/filaments
 | `created_at` | timestamp | — |
 
 確認済みにしたあとで形を直すと、新しい版ができる。前の版の `approval` はそのまま残るが、`current_design_id` は新しい版に移る。ダウンロード画面は `current_design_id` の版を見るので、直した版はもう一度OTの確認を受けるまで印刷用STLが出ない。
+
+### 2.5.1 `cases/{caseId}/fit_reports/{reportId}`
+
+刷って使ったあとの報告（[ADR-0015](adr/0015-refit-reorder.md)、[api.md §3.14](api.md#314-post-v1casescase_iddesignsdesign_idfit-report)）。書くのは生成APIだけ。写真や動画は持たない。
+
+| フィールド | 型 | 内容 |
+|---|---|---|
+| `design_id` | string | 報告した版（印刷用データを出した版） |
+| `part` | string | `cover` か、取り付け具の ID（`a1`・`a2`…） |
+| `print_key` | string | その部品の印刷用のキー（`cover`、`c_clip`、`c_clip_a2` …） |
+| `result` | string | `good` ／ `loose` ／ `tight_pain` ／ `red` ／ `tool_slips` |
+| `felt_changed` | boolean | フェルトの厚さをもう替えたか |
+| `advice_kind` | string | 返した次にすること（`stop` ／ `none` ／ `felt` ／ `refine` ／ `consult`） |
+| `proposal` | map / null | 返した直す案 `{ part, name, from, to, summary_ja }` |
+| `refine_design_id` | string | この報告から作った版（作ったときだけ） |
+| `created_at` | timestamp | — |
 
 `review-request` を受けた版の形とスナップショットは不変とする。印刷用STLは依頼のときに作り、承認では描き直さない。形の変更は新しい版に記録し、`approval.status=none` から確認をやり直す。色だけの変更は版を変えない。
 
@@ -190,6 +209,7 @@ internal/cases/{caseId}/cover/{measurementId}/sdf             … 手のメッ�
 | `cases/{caseId}` | 持ち主（`owner_uid == request.auth.uid`）、または依頼されたOT（`reviewer_email` がログイン中のメールと同じで、メールが確認済みで、`therapists` にドキュメントがある） | 不可（APIだけ） |
 | `cases/{caseId}/messages/*` | 親のケースを読める人 | 不可 |
 | `cases/{caseId}/designs/*` | 親のケースを読める人 | 不可 |
+| `cases/{caseId}/fit_reports/*` | 親のケースを読める人 | 不可 |
 | `usage/**` | 不可 | 不可 |
 | `settings/filaments` | ログインした人 | 不可 |
 | `settings/**`（それ以外） | 不可 | 不可 |
@@ -228,7 +248,7 @@ Firebase Local Emulator Suiteで、次のケースを確かめる（11/9まで�
 
 - ハッカソンの審査が終わったら（2026年12月まで）、デモ用のデータはすべて消す
 - 持ち主は、S1のカードのメニューからケースを消せる（`DELETE /v1/cases/{case_id}`。[api.md §3.12](api.md#312-delete-v1casescase_id)）。管理者がコンソールから消すこともできる
-- **ケースを消すときは、手のメッシュも必ず消す**：Firestoreの `cases/{caseId}`（下のコレクションを含む）に加えて、Storageの `cases/{caseId}/`（実寸と未補正の手のメッシュ、STL、画像）と `internal/cases/{caseId}/`（印刷用STL、カバーの殻、内側を守る立体）をまとめて消す。同意の画面で「ケースを消すと消えます」と約束しているため。`DELETE /v1/cases/{case_id}` はこの全部を消す。管理者がコンソールから消すときの手順は、READMEに書く（要確認：コンソールでフォルダごと消せるか、11/9に確かめる）
+- **ケースを消すときは、手のメッシュも必ず消す**：Firestoreの `cases/{caseId}`（下のコレクション `designs`・`messages`・`fit_reports` を含む）に加えて、Storageの `cases/{caseId}/`（実寸と未補正の手のメッシュ、STL、画像）と `internal/cases/{caseId}/`（印刷用STL、カバーの殻、内側を守る立体）をまとめて消す。同意の画面で「ケースを消すと消えます」と約束しているため。`DELETE /v1/cases/{case_id}` はこの全部を消す。管理者がコンソールから消すときの手順は、READMEに書く（要確認：コンソールでフォルダごと消せるか、11/9に確かめる）
 - 撮り直しで採寸に使われなかった未補正のメッシュも、ケースを消すまで残す（どの撮影で作られたかの記録として）。それより早く消す仕組みは拡張機能
 - 同意を取り消しても、保存済みの手のメッシュは自動では消さない（形の版が参照しているため）。消したいときはケースを消す
 - 動画・写真はもともと保存しないので、消す必要がない

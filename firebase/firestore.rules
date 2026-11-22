@@ -36,6 +36,11 @@ service cloud.firestore {
         allow read: if canReadCase(caseId);
         allow write: if false;
       }
+      // 使ったあとの報告（ADR-0015）。書くのは生成APIだけ
+      match /fit_reports/{reportId} {
+        allow read: if canReadCase(caseId);
+        allow write: if false;
+      }
     }
     match /settings/filaments {
       allow read: if signedIn();

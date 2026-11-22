@@ -4,6 +4,7 @@ import 'package:jijogu_app/app/paths.dart';
 import 'package:jijogu_app/core/session.dart';
 import 'package:jijogu_app/core/ui/ui.dart';
 import 'package:jijogu_app/features/design/design_screen.dart';
+import 'package:jijogu_app/features/fit/fit_report_screen.dart';
 import 'package:jijogu_app/features/home/home_screen.dart';
 import 'package:jijogu_app/features/interview/interview_screen.dart';
 import 'package:jijogu_app/features/login/login_screen.dart';
@@ -19,6 +20,7 @@ class AppRouter {
   static String capture(String c) => Paths.capture(c);
   static String design(String c, String? d) => Paths.design(c, d);
   static String print(String c, String d) => Paths.print(c, d);
+  static String fit(String c, String d) => Paths.fit(c, d);
   static String review(String c) => Paths.review(c);
 
   static Route<dynamic> onGenerateRoute(RouteSettings s) {
@@ -51,6 +53,9 @@ class AppRouter {
         case 'designs' when seg.length >= 4:
           if (seg.length >= 5 && seg[4] == 'print') {
             return PrintScreen(caseId: c, designId: seg[3]);
+          }
+          if (seg.length >= 5 && seg[4] == 'fit') {
+            return FitReportScreen(caseId: c, designId: seg[3]);
           }
           return DesignScreen(
             caseId: c,
