@@ -64,6 +64,7 @@
 | POST | `/v1/cases/{case_id}/review-request` | OTに確認を頼む（部品ごとの印刷用STLもここで作る） | 持ち主 |
 | POST | `/v1/cases/{case_id}/designs/{design_id}/prepare-print` | デモのケースだけ：OTの確認なしで部品ごとの印刷用STLを作る | 持ち主（デモのケースのみ） |
 | POST | `/v1/cases/{case_id}/designs/{design_id}/approval` | OTが「確認済み」にするか、差し戻す | 依頼されたOT |
+| POST | `/v1/cases/{case_id}/designs/{design_id}/fit-report` | 刷って使ったあとの報告（ちょうどいい・ゆるい・きつい・赤くなった・道具が抜ける）を記録し、次にすることと直す案を返す（§3.14） | 持ち主 |
 | POST | `/v1/cases/{case_id}/recover` | 期限切れの処理中の印を回収し、最新状態を返す（AI・GPU処理なし） | 持ち主、依頼されたOT |
 | DELETE | `/v1/cases/{case_id}` | ケースを消す（手のメッシュ・版・チャット・STL・画像もまとめて消す） | 持ち主 |
 
@@ -379,6 +380,7 @@ STL・画像・実寸の手のメッシュ（GLB）は、APIを通さずに、Fi
   - 足す取り付け具の ID は版の中の最大の番号＋1、`tool_index` は `requirements.tools` の最後の位置。角度は Gemini の `attachment` で60／70／80から選ぶ（モックは道具ごとの目安。選択肢にない答えは目安に直して `clamped` に残す）。ほかの取り付け具と主な取り付け具は前の版のまま。カバーは前の版の殻を使い、`cover_shell_sha256` とカバーのプレビュー用STLは前の版と同じ。画像での確認はしない
   - 足す取り付け具が範囲チェックの致命的な違反（`DESIGN_INFEASIBLE`）・R6f（クリップの開き）・描けない（OpenSCADの失敗）のどれかになったら、作りかけの版を消して、ケースを前の版・前の状態に戻し、エラーを返す（R6f と描けないときは `RENDER_FAILED`。`details` に検査の名前 `rule`（`R6f…`・`render`）と `attachment_id`）。`requirements.tools` にも足さない。§3.4 のように、その取り付け具だけ外して版を作ることはしない
   - 作れたら、足した道具を `requirements.tools` の最後に加える（`assumptions` も道具の名前つきで足す）。主な取り付け具と今までの項目は変わらない
+- **使ったあとの報告から直すとき**（§3.14、[ADR-0015](adr/0015-refit-reorder.md)）：報告の応答の `advice.proposal.request` をそのまま送る。`param_changes`（カバーのすき間 `cover.clearance_mm`）か `tool_d_mm`（クリップの柄の太さ）に、`fit_report_id` が付く。`fit_report_id` は、直す版について出した報告の ID でなければ `400 INVALID_ARGUMENT`。作った版に `fit_report_id` と `refit_base_design_id`（報告した版）を記録し、報告に `refine_design_id` を書く。`cover.clearance_mm` は Gemini には変えさせない（`instruction` の答えに入っていても当てない）
 - 取り付け具を足す・直すと新しい版になる。確認済み（`approval`）は引き継がず `{"status": "none"}`、ケースは `previewing` に戻る（OTに頼んだ版や承認済みの版でも、版の `status` が `ready`／`needs_attention` なら直せる。もう一度OTに頼む）。`origin` は `refine_add_attachment`・`refine_tool_d` が加わる（ほかは `refine_text`・`refine_params`・`refine_clip_angle`。色だけの変更は版を作らないので、`origin` はない）
 
 ### 3.6 `POST /v1/cases/{case_id}/review-request`
@@ -485,7 +487,7 @@ STL・画像・実寸の手のメッシュ（GLB）は、APIを通さずに、Fi
 
 - 呼べるのは持ち主だけ（ほかの人は `403 FORBIDDEN`、ケースがなければ `404 NOT_FOUND`）
 - 有効な処理中の印（`active_operation`）があるあいだは `409 CONFLICT`（形を作っている途中に消すと、書き込みと食い違うため）
-- 消すもの（[data-model.md §5](data-model.md#5-保存期間と削除)）：Storageの `cases/{case_id}/`（実寸と未補正の手のメッシュ、STL、画像）と `internal/cases/{case_id}/`、Firestoreの `cases/{case_id}/designs` と `cases/{case_id}/messages`、最後に `cases/{case_id}` 本体。途中で失敗しても、ケースの文書が残っていればもう一度消せる
+- 消すもの（[data-model.md §5](data-model.md#5-保存期間と削除)）：Storageの `cases/{case_id}/`（実寸と未補正の手のメッシュ、STL、画像）と `internal/cases/{case_id}/`、Firestoreの `cases/{case_id}/designs`・`cases/{case_id}/messages`・`cases/{case_id}/fit_reports`、最後に `cases/{case_id}` 本体。途中で失敗しても、ケースの文書が残っていればもう一度消せる
 - OTに確認を頼んでいる途中（`in_review`）でも消せる。消すと、OTの確認の画面も開けなくなる（画面の確認の文で伝える）
 - 応答は `200` で `{ "deleted": true, "case_id": "...", "files_deleted": 12 }`
 
@@ -493,7 +495,49 @@ STL・画像・実寸の手のメッシュ（GLB）は、APIを通さずに、Fi
 
 - `GET /v1/cases`：持ち主のケースの一覧 `{ "cases": [ … ] }`（`updated_at` の新しい順）。S1のカードに使う
 - `GET /v1/cases/{case_id}`：持ち主か依頼されたOTが読める（ほかは `403`、なければ `404`）。返すのは `case_id` と、`title`・`status`・`demo`・`requirements`・`turn_count`・`measurement_id`・`hand_model`・`current_design_id`・`active_operation`・`reviewer_email`・`mesh_consent_at`・`consent_text_version`・`created_at`・`updated_at`・`baseline`（ある項目だけ。`measurement` そのものは返さない）
-- `GET /v1/cases/{case_id}/designs/{design_id}`：`{ "design": { … } }`（§3.4 の応答と同じ形。`progress`・`error`・`clamped`・`origin`・`parent_design_id`・`print_prepared_at`・`geometry_hash` も入る）。形を作っている間は2秒ごとに呼ばれる
+- `GET /v1/cases/{case_id}/designs/{design_id}`：`{ "design": { … } }`（§3.4 の応答と同じ形。`progress`・`error`・`clamped`・`origin`・`parent_design_id`・`print_prepared_at`・`geometry_hash` も入る）。形を作っている間は2秒ごとに呼ばれる。報告から作った版（と、そこから続けて直した版）には `fit_report_id`・`refit_base_design_id` と、刷り直す部品 `reprint`（§3.14）も入る
+
+### 3.14 `POST /v1/cases/{case_id}/designs/{design_id}/fit-report`
+
+刷って使ってみたあとの報告を記録し、次にすることを返す（[ADR-0015](adr/0015-refit-reorder.md)）。S10 の「使ってみてどうでしたか」から呼ぶ。
+
+```json
+{ "part": "cover", "result": "loose", "felt_changed": false }
+```
+
+- `part`：`cover` か、版の取り付け具の ID（`a1`・`a2`…）。`result`：`good`（ちょうどいい）／`loose`（ゆるい）／`tight_pain`（きつい・痛い）／`red`（赤くなった）／`tool_slips`（道具が抜ける。クリップのときだけ）。`felt_changed`：フェルトの厚さをもう替えたか（省略すると `false`）
+- 呼べるのは持ち主だけ。版がなければ `404`、最新の版でなければ `409 STALE_DESIGN`、印刷用データ（`files.print`）がない版は `409 CONFLICT`（「印刷用のデータを出した版だけ報告できます」）。形が違う・版にない部品・カバーに `tool_slips` は `400 INVALID_ARGUMENT`
+- Gemini は呼ばず、回数にも数えない。報告を `cases/{case_id}/fit_reports/{report_id}` に書く（[data-model.md §2.5.1](data-model.md#251-casescaseidfit_reportsreportid)）
+- 応答 `200 OK`：
+
+```json
+{
+  "report_id": "fr_1a2b3c4d",
+  "advice": {
+    "kind": "felt",
+    "message_ja": "まず、内側のフェルトを厚いものに替えてみてください。刷り直さずに合うことがあります。",
+    "proposal": {
+      "part": "cover", "name": "clearance_mm", "from": 1.5, "to": 1.25,
+      "summary_ja": "カバーとこぶしのすき間を 1.5mm から 1.25mm に狭めます",
+      "request": { "param_changes": [ { "part_id": "cover", "name": "clearance_mm", "value": 1.25, "reason_ja": "使ったあとの報告（ゆるい）に合わせて、すき間を0.25mm狭めました" } ], "fit_report_id": "fr_1a2b3c4d" }
+    }
+  }
+}
+```
+
+- `advice.kind` と、そのときの中身：
+
+| `kind` | いつ | `proposal` |
+|---|---|---|
+| `stop` | `red`（部品によらない） | なし。「すぐに使うのをやめて、作業療法士に相談してください」 |
+| `none` | `good` | なし |
+| `felt` | カバーの `loose`／`tight_pain` で、`felt_changed` が `false` | あり（フェルトを替えても合わなかったときに使う） |
+| `refine` | カバーの `loose`／`tight_pain` で `felt_changed` が `true`。クリップの `loose`／`tight_pain`／`tool_slips` | あり |
+| `consult` | 直した値が範囲の外になる（すき間 1.0〜2.0mm、柄の太さ 3.5〜20.0mm） | なし。「これ以上は自動で直せません。作業療法士に相談してください」 |
+
+- 直す量は 0.25mm に固定：カバーの `loose` はすき間を狭め、`tight_pain` は広げる（今のすき間は版の `cover.clearance_mm`、なければ `HAND_CLEARANCE_MM`）。クリップの `loose`・`tool_slips` は柄の太さを小さく（しめしろが増える）、`tight_pain` は大きくする（`tool_d_mm` と `attachment_id` を送る）
+- `proposal.request` は §3.5 の `refine` にそのまま送れる本文。直すかどうかは本人が決める（このエンドポイントは版を作らない）
+- **刷り直す部品 `reprint`**：報告から作った版を読むと、`{ "base_design_id": "d_…", "changed": ["cover"], "unchanged": ["c_clip"] }` が入る。`base_design_id` は報告した版、キーは `files.print` と同じ印刷用のキー。カバーは `cover_shell_sha256`・カバーの部品の引数・採寸の版で、クリップは取り付け具ごとの太さと角度で比べる（刷ったファイルのハッシュは、OpenSCAD が毎回少し違うファイルを出すので使わない）
 
 ## 4. 手のメッシュ復元サービス `hand-mesh`
 
