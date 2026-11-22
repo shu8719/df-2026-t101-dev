@@ -499,7 +499,7 @@ STL・画像・実寸の手のメッシュ（GLB）は、APIを通さずに、Fi
 
 ### 3.14 `POST /v1/cases/{case_id}/designs/{design_id}/fit-report`
 
-刷って使ってみたあとの報告を記録し、次にすることを返す（[ADR-0015](adr/0015-refit-reorder.md)）。S10 の「使ってみてどうでしたか」から呼ぶ。
+刷って使ってみたあとの報告を記録し、次にすることを返す（[ADR-0015](adr/0015-refit-reorder.md)）。S12「使ってみてどうでしたか」（入り口は S10 と S1）から呼ぶ。
 
 ```json
 { "part": "cover", "result": "loose", "felt_changed": false }
