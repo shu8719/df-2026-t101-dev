@@ -40,10 +40,11 @@ List<String> fitResultsFor(FitPart part) => [
     if (!(part.isCover && k == 'tool_slips')) k,
 ];
 
-/// 報告の欄を出すか：印刷用データがあって読める（確認済みかデモ）最新の版だけ
-bool canReportFit(Map<String, dynamic> design, Map<String, dynamic>? caseDoc, {required bool ready}) =>
-    ready &&
+/// 「使ってみてどうでしたか」（S12）を開けるか：印刷用データがあって読める（確認済みかデモ）最新の版だけ。
+/// S10 の入り口のカード、S1 のカードのボタン、S12 の空の状態の判定に使う
+bool canReportFit(Map<String, dynamic> design, Map<String, dynamic>? caseDoc) =>
     (((design['files'] as Map?)?['print'] as Map?)?.isNotEmpty ?? false) &&
+    ((design['approval'] as Map?)?['status'] == 'approved' || caseDoc?['demo'] == true) &&
     caseDoc?['current_design_id'] == design['design_id'];
 
 /// 報告した版と比べて、この印刷用のキーの部品を刷り直すか（true＝刷り直す、false＝そのまま使える、null＝報告から作った版ではない）

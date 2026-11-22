@@ -6,6 +6,7 @@ class Paths {
   static String design(String c, String? d) =>
       '/cases/$c/designs/${d ?? 'new'}';
   static String print(String c, String d) => '/cases/$c/designs/$d/print';
+  static String fit(String c, String d) => '/cases/$c/designs/$d/fit';
   static String review(String c) => '/review/$c';
 }
 

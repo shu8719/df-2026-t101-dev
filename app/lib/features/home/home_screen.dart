@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:jijogu_app/app/paths.dart';
 import 'package:jijogu_app/app/router.dart';
 import 'package:jijogu_app/core/api/api.dart';
+import 'package:jijogu_app/core/models/fit_report.dart';
 import 'package:jijogu_app/core/session.dart';
 import 'package:jijogu_app/core/storage/files.dart';
 import 'package:jijogu_app/core/ui/ui.dart';
@@ -275,6 +276,7 @@ class _CaseCard extends StatefulWidget {
 class _CaseCardState extends State<_CaseCard> {
   Uint8List? _thumb;
   bool _rejected = false;
+  bool _canFit = false; // 刷れる版なら「使ってみてどうでしたか」（S12、ADR-0015）
 
   @override
   void initState() {
@@ -293,6 +295,7 @@ class _CaseCardState extends State<_CaseCard> {
         (r is Map && r['design'] != null) ? r['design'] : r,
       );
       final rejected = (design['approval'] as Map?)?['status'] == 'rejected';
+      if (mounted && canReportFit(design, c)) setState(() => _canFit = true);
       final iso =
           ((design['files'] as Map?)?['views'] as Map?)?['iso'] as String?;
       if (mounted && rejected) setState(() => _rejected = true);
@@ -331,73 +334,96 @@ class _CaseCardState extends State<_CaseCard> {
         color: AppColors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // カードの本体を押すと続きの画面へ。右のメニューのボタンは別に押せる（読み上げでも別の項目）
-            Expanded(
-              child: Semantics(
-                button: true,
-                label: '$title、$label、$updated',
-                excludeSemantics: true,
-                child: InkWell(
-                  onTap: widget.onTap,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
-                    child: Row(
-                      children: [
-                        _Thumb(bytes: _thumb, statusIcon: icon),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(title, style: AppText.titleMedium),
-                              const SizedBox(height: 4),
-                              StatusLabel(label: label, tone: tone, icon: icon),
-                              if (updated.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  updated,
-                                  style: AppText.bodySmall.copyWith(
-                                    color: AppColors.onSurfaceVariant,
+            Row(
+              children: [
+                // カードの本体を押すと続きの画面へ。右のメニューのボタンは別に押せる（読み上げでも別の項目）
+                Expanded(
+                  child: Semantics(
+                    button: true,
+                    label: '$title、$label、$updated',
+                    excludeSemantics: true,
+                    child: InkWell(
+                      onTap: widget.onTap,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+                        child: Row(
+                          children: [
+                            _Thumb(bytes: _thumb, statusIcon: icon),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(title, style: AppText.titleMedium),
+                                  const SizedBox(height: 4),
+                                  StatusLabel(
+                                    label: label,
+                                    tone: tone,
+                                    icon: icon,
                                   ),
-                                ),
-                              ],
-                            ],
-                          ),
+                                  if (updated.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      updated,
+                                      style: AppText.bodySmall.copyWith(
+                                        color: AppColors.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: PopupMenuButton<String>(
-                tooltip: '「$title」のメニュー',
-                icon: const Icon(
-                  Icons.more_vert_rounded,
-                  color: AppColors.onSurfaceVariant,
-                ),
-                onSelected: (v) {
-                  if (v == 'delete') widget.onDelete();
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.delete_outline_rounded,
-                        color: AppColors.error,
                       ),
-                      title: Text('消す'),
                     ),
                   ),
-                ],
-              ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: PopupMenuButton<String>(
+                    tooltip: '「$title」のメニュー',
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                    onSelected: (v) {
+                      if (v == 'delete') widget.onDelete();
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            Icons.delete_outline_rounded,
+                            color: AppColors.error,
+                          ),
+                          title: Text('消す'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
+            if (_canFit)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed(
+                    AppRouter.fit(
+                      '${c['case_id']}',
+                      '${c['current_design_id']}',
+                    ),
+                  ),
+                  icon: const Icon(Icons.rate_review_rounded),
+                  label: const Text('使ってみてどうでしたか'),
+                ),
+              ),
           ],
         ),
       ),

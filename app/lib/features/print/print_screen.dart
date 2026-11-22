@@ -7,7 +7,6 @@ import 'package:jijogu_app/core/models/attachments.dart';
 import 'package:jijogu_app/core/models/fit_report.dart';
 import 'package:jijogu_app/core/ui/ui.dart';
 import 'package:jijogu_app/features/print/download.dart';
-import 'package:jijogu_app/features/print/fit_report_panel.dart';
 
 /// 部品ごとの材料（Figma の札）
 const _partMaterial = {'cover': 'PLA', 'c_clip': 'PETG', 'tpu_sleeve': 'TPU'};
@@ -97,8 +96,8 @@ class _PrintScreenState extends State<PrintScreen> {
     final comment = '${d?['approval']?['comment_ja'] ?? ''}'.trim();
     final canAdd = d != null &&
         canAddFromPrint(d, (_case?['requirements'] as Map?)?.cast<String, dynamic>(), ready: ready);
-    // 使ったあとの報告（ADR-0015）：印刷用データを読める最新の版だけ
-    final canReport = d != null && canReportFit(d, _case, ready: ready);
+    // 使ったあとの報告（S12、ADR-0015）の入り口：印刷用データを読める最新の版だけ
+    final canReport = d != null && canReportFit(d, _case);
     return AppPage(
       title: '印刷と使い方',
       bottom: ready
@@ -181,13 +180,17 @@ class _PrintScreenState extends State<PrintScreen> {
           ),
           const SizedBox(height: 6),
         ],
-        if (canReport)
-          FitReportPanel(
-            key: ValueKey(d['design_id']),
-            caseId: widget.caseId,
-            design: d,
-            requirements: (_case?['requirements'] as Map?)?.cast<String, dynamic>(),
+        if (canReport) ...[
+          const InfoCard(
+            icon: Icons.back_hand_rounded,
+            child: Text('刷って使ってみたら、合ったかどうかを教えてください。合わないときは直し方をお知らせします。'),
           ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).pushNamed(AppRouter.fit(widget.caseId, widget.designId)),
+            icon: const Icon(Icons.rate_review_rounded),
+            label: const Text('使ってみてどうでしたか'),
+          ),
+        ],
         if (d != null) ...[
           // 確認前（ダウンロードできないとき）も刷り方は読めるようにする
           if (!ready) ...[

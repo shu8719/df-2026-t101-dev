@@ -24,6 +24,7 @@ Flutter Web の画面と、ブラウザの中で動く採寸エンジン（TypeS
 | `lib/features/design/` | S6〜S8 形を作る・直す、OT に確認を頼む |
 | `lib/features/review/` | S9 OT の確認 |
 | `lib/features/print/` | S10 ダウンロード（`print_screen`）、Storage のファイルを保存する（`download`） |
+| `lib/features/fit/` | S12 使ってみてどうでしたか（`fit_report_screen`。使ったあとの報告から直す。ADR-0015）。決め方は `lib/core/models/fit_report.dart` |
 | `assets/images/` | アプリ名のロゴ（`logo.png`。S0・S1）、Google の G（`google_g.svg`）、S10 の部品の絵（`part_cover.svg`・`part_c_clip.svg`） |
 | `web_engine/src/` | 採寸エンジン：アプリの中のカメラ、MediaPipe、1円玉の自動検出（OpenCV.js、Web Worker）、集計、hand-mesh の呼び出し |
 | `web/js/` | `measure_engine.js`・`coin_worker.js`（web_engine をまとめたもの）、`viewer.js`（three.js） |
@@ -78,3 +79,4 @@ cd app && flutter test
 - `test/attachments_preview_test.dart`：S7 の取り付け具の切り替え・足す・太さを直す（ADR-0014）
 - `test/attachments_print_test.dart`：S10 のダウンロードの行と、S9 の取り付け具の一覧
 - `test/text_ja_test.dart`：AI の文から項目名を取り除く（`text_ja.dart`）
+- `test/fit_report_test.dart`：S12 の部品と答えの選択肢、開ける版、刷り直す印、モックで報告から直す流れ（ADR-0015）

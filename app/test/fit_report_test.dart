@@ -59,15 +59,18 @@ void main() {
       expect(fitResultsFor(const FitPart('a1', 'C字クリップ', 'c_clip')).length, 5);
     });
 
-    test('報告の欄は、印刷用データを読める最新の版だけ', () {
-      final d = {
+    test('S12 を開けるのは、印刷用データを読める（確認済みかデモ）最新の版だけ', () {
+      final approved = {
         'design_id': 'd1',
         'files': {'print': {'cover': 'x'}},
+        'approval': {'status': 'approved'},
       };
-      expect(canReportFit(d, {'current_design_id': 'd1'}, ready: true), isTrue);
-      expect(canReportFit(d, {'current_design_id': 'd1'}, ready: false), isFalse);
-      expect(canReportFit(d, {'current_design_id': 'd2'}, ready: true), isFalse);
-      expect(canReportFit({'design_id': 'd1', 'files': {}}, {'current_design_id': 'd1'}, ready: true), isFalse);
+      final demoOnly = {...approved, 'approval': {'status': 'none'}};
+      expect(canReportFit(approved, {'current_design_id': 'd1'}), isTrue);
+      expect(canReportFit(demoOnly, {'current_design_id': 'd1', 'demo': true}), isTrue);
+      expect(canReportFit(demoOnly, {'current_design_id': 'd1', 'demo': false}), isFalse); // 確認前
+      expect(canReportFit(approved, {'current_design_id': 'd2'}), isFalse); // 最新の版でない
+      expect(canReportFit({...approved, 'files': {}}, {'current_design_id': 'd1'}), isFalse); // 印刷用データがない
     });
 
     test('刷り直す印：reprint がない版は出さない', () {
